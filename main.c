@@ -24,7 +24,7 @@ typedef struct EnvObjs {
 } EnvObjs;
 
 bool PBetween2P(float p, float p2l, float p2h) {
-  return p >= p2l && p < p2h;
+  return p >= p2l && p <= p2h;
 }
 
 bool Collided(Rectangle r1, Rectangle r2) {
@@ -47,7 +47,6 @@ void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
     p->pos.x = newx;
   if (!ycol) 
     p->pos.y = newy;
-  
   c->target = p->pos;
 }
 
