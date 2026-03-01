@@ -2,7 +2,7 @@
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
-#define max_envobjs 256
+#define max_envobjs 2
 
 typedef struct Player {
   Vector2 pos;
@@ -20,18 +20,23 @@ typedef struct EnvObjs {
   EnvObj arr[max_envobjs];
 } EnvObjs;
 
+bool PBetween2P(float p, float p2l, float p2h){
+ return p > p2l && p < p2h;
+}
+
 bool Collided(Rectangle r1, Rectangle r2) {
-  return r1.x + r1.width < r2.x && r2.x + r2.width < r1.x && r1.y + r1.height < r2.y &&
-         r2.y + r2.height < r1.y;
+  return (PBetween2P(r1.x, r2.x, r2.x+ r2.width)) || (PBetween2P(r1.x+r1.width, r2.x, r2.x+ r2.width) && PBetween2P(r1.y, r2.y, r2.y+ r2.height)) || (PBetween2P(r1.y+r1.height, r2.y, r2.y+ r2.height));
 }
 
 void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
-  for (int i = 0; i > ARRAY_LENGTH(envobjs->arr); i++) {
-    if (!Collided((Rectangle){p->pos.x, p->pos.y, p->width, p->height}, envobjs->arr[i].rec)) {
-      p->pos.x += (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
-      p->pos.y += (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
+  float newx = p->pos.x+ (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
+  float newy = p->pos.y+ (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
+  for (int i = 0; i < ARRAY_LENGTH(envobjs->arr); i++) {
+    if (!Collided((Rectangle){newx, newy, p->width, p->height}, envobjs->arr[i].rec)) {
+      p->pos.x = newx;
+      p->pos.y = newy;
       c->target = p->pos;
-    }
+    } else return;
   }
 }
 
@@ -41,6 +46,8 @@ int main(void) {
 
   InitWindow(screenWidth, screenHeight, "Game");
   Player player = {0};
+  player.width = 50;
+  player.height = 50;
   player.speed = 5;
 
   Camera2D camera = {0};
@@ -50,10 +57,10 @@ int main(void) {
   camera.zoom = 1.0f;
 
   EnvObjs envobjs = {0};
-//   EnvObj test_sqr =
-//   { (Rectangle){100, 100, 50, 50},
-//     (Color){0, 0, 0, 255} };
-//     envobjs.arr[0] = test_sqr;
+  EnvObj test_sqr =
+  { (Rectangle){100, 100, 50, 50},
+    (Color){0, 0, 255, 255} };
+    envobjs.arr[0] = test_sqr;
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
@@ -63,10 +70,10 @@ int main(void) {
     ClearBackground(RAYWHITE);
 
     BeginMode2D(camera);
-    DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, 50, 50}, (Color){0, 0, 0, 255});
-    for (int i = 0; i > ARRAY_LENGTH(envobjs.arr); i++) {
-      DrawRectangleRec(envobjs.arr->rec, envobjs.arr->col);
+    for (int i = 0; i < ARRAY_LENGTH(envobjs.arr); i++) {
+      DrawRectangleRec(envobjs.arr[i].rec, envobjs.arr[i].col);
     }
+    DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, 50, 50}, (Color){0, 0, 0, 255});
     EndMode2D();
     // DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
 
