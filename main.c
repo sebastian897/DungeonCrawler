@@ -1,8 +1,9 @@
 #include <raylib.h>
+#include <stddef.h>
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
-#define max_envobjs 2
+#define max_envobjs 256
 
 typedef struct Player {
   Vector2 pos;
@@ -18,25 +19,30 @@ typedef struct EnvObj {
 
 typedef struct EnvObjs {
   EnvObj arr[max_envobjs];
+  size_t count;
 } EnvObjs;
 
-bool PBetween2P(float p, float p2l, float p2h){
- return p > p2l && p < p2h;
+bool PBetween2P(float p, float p2l, float p2h) {
+  return p >= p2l && p < p2h;
 }
 
 bool Collided(Rectangle r1, Rectangle r2) {
-  return (PBetween2P(r1.x, r2.x, r2.x+ r2.width)) || (PBetween2P(r1.x+r1.width, r2.x, r2.x+ r2.width) && PBetween2P(r1.y, r2.y, r2.y+ r2.height)) || (PBetween2P(r1.y+r1.height, r2.y, r2.y+ r2.height));
+  return (PBetween2P(r1.x, r2.x, r2.x + r2.width) ||
+          PBetween2P(r1.x + r1.width, r2.x, r2.x + r2.width)) &&
+         (PBetween2P(r1.y, r2.y, r2.y + r2.height) ||
+          PBetween2P(r1.y + r1.height, r2.y, r2.y + r2.height));
 }
 
 void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
-  float newx = p->pos.x+ (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
-  float newy = p->pos.y+ (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
-  for (int i = 0; i < ARRAY_LENGTH(envobjs->arr); i++) {
+  float newx = p->pos.x + (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
+  float newy = p->pos.y + (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
+  for (size_t i = 0; i < envobjs->count; i++) {
     if (!Collided((Rectangle){newx, newy, p->width, p->height}, envobjs->arr[i].rec)) {
       p->pos.x = newx;
       p->pos.y = newy;
       c->target = p->pos;
-    } else return;
+    } else
+      return;
   }
 }
 
@@ -48,7 +54,7 @@ int main(void) {
   Player player = {0};
   player.width = 50;
   player.height = 50;
-  player.speed = 5;
+  player.speed = 1;
 
   Camera2D camera = {0};
   camera.target = player.pos;
@@ -57,10 +63,9 @@ int main(void) {
   camera.zoom = 1.0f;
 
   EnvObjs envobjs = {0};
-  EnvObj test_sqr =
-  { (Rectangle){100, 100, 50, 50},
-    (Color){0, 0, 255, 255} };
-    envobjs.arr[0] = test_sqr;
+  EnvObj test_sqr = {(Rectangle){100, 100, 50, 50}, (Color){0, 0, 255, 255}};
+  envobjs.arr[0] = test_sqr;
+  envobjs.count++;
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
@@ -70,7 +75,7 @@ int main(void) {
     ClearBackground(RAYWHITE);
 
     BeginMode2D(camera);
-    for (int i = 0; i < ARRAY_LENGTH(envobjs.arr); i++) {
+    for (size_t i = 0; i < envobjs.count; i++) {
       DrawRectangleRec(envobjs.arr[i].rec, envobjs.arr[i].col);
     }
     DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, 50, 50}, (Color){0, 0, 0, 255});
