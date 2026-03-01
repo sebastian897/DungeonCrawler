@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
@@ -19,7 +20,7 @@ typedef struct EnvObj {
 
 typedef struct EnvObjs {
   EnvObj arr[max_envobjs];
-  size_t count;
+  int count;
 } EnvObjs;
 
 bool PBetween2P(float p, float p2l, float p2h) {
@@ -36,14 +37,18 @@ bool Collided(Rectangle r1, Rectangle r2) {
 void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
   float newx = p->pos.x + (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
   float newy = p->pos.y + (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
-  for (size_t i = 0; i < envobjs->count; i++) {
-    if (!Collided((Rectangle){newx, newy, p->width, p->height}, envobjs->arr[i].rec)) {
-      p->pos.x = newx;
-      p->pos.y = newy;
-      c->target = p->pos;
-    } else
-      return;
+  bool xcol = false;
+  bool ycol = false;
+  for (int i = 0; i < envobjs->count; i++) {
+      if (Collided((Rectangle){newx, p->pos.y, p->width, p->height}, envobjs->arr[i].rec)) xcol = true;
+      if (Collided((Rectangle){p->pos.x, newy, p->width, p->height}, envobjs->arr[i].rec)) ycol = true;
   }
+  if (!xcol)
+    p->pos.x = newx;
+  if (!ycol) 
+    p->pos.y = newy;
+  
+  c->target = p->pos;
 }
 
 int main(void) {
@@ -75,7 +80,7 @@ int main(void) {
     ClearBackground(RAYWHITE);
 
     BeginMode2D(camera);
-    for (size_t i = 0; i < envobjs.count; i++) {
+    for (int i = 0; i < envobjs.count; i++) {
       DrawRectangleRec(envobjs.arr[i].rec, envobjs.arr[i].col);
     }
     DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, 50, 50}, (Color){0, 0, 0, 255});
