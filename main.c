@@ -4,7 +4,7 @@
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
-#define max_envobjs 256
+#define max_envobjs 25600
 enum { tile_size = 64 };
 Color wall_color = RED;
 Color tile_color = LIGHTGRAY;
@@ -56,8 +56,8 @@ void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
 }
 
 void AddRecSqrs(EnvObjs* envobjs, Rectangle rec, Color col, bool can_col) {
-  for (int x = 0; x < rec.x; x++) {
-    for (int y = 0; y < rec.y; y++) {
+  for (int x = 0; x < rec.width; x++) {
+    for (int y = 0; y < rec.height; y++) {
       envobjs->arr[envobjs->count] = (EnvObj){(Rectangle){rec.x+(x*tile_size), rec.y+(y*tile_size), tile_size,tile_size}, col, can_col};
       envobjs->count++;
     }
@@ -72,12 +72,12 @@ void CreateRoom(Rectangle rec, EnvObjs* envobjs) {
   for (int d = 0; d < 4; d++) {
     AddRecSqrs(envobjs, (Rectangle){rec.x + dsx[d] * (rec.width - 1) * tile_size,
                                                  rec.y + dsy[d] * (rec.height - 1) * tile_size,
-                                                 tile_size * (ddx[d] * (rec.width - 1) + 1),
-                                                 tile_size * (ddy[d] * (rec.height - 1) + 1)}, wall_color, true);
+                                                 (ddx[d] * (rec.width - 1) + 1),
+                                                 (ddy[d] * (rec.height - 1) + 1)}, wall_color, true);
   }
   AddRecSqrs(envobjs, 
-  (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2) * tile_size,
-                           (rec.height - 2) * tile_size},
+  (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2),
+                           (rec.height - 2)},
                tile_color, false);
 }
 
