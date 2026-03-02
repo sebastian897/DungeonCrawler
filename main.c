@@ -5,6 +5,9 @@
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
 #define max_envobjs 256
+enum { tile_size = 64 };
+Color wall_color = RED;
+Color tile_color = LIGHTGRAY;
 
 typedef struct Player {
   Vector2 pos;
@@ -16,6 +19,7 @@ typedef struct Player {
 typedef struct EnvObj {
   Rectangle rec;
   Color col;
+  bool can_col;
 } EnvObj;
 
 typedef struct EnvObjs {
@@ -40,14 +44,41 @@ void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
   bool xcol = false;
   bool ycol = false;
   for (int i = 0; i < envobjs->count; i++) {
-      if (Collided((Rectangle){newx, p->pos.y, p->width, p->height}, envobjs->arr[i].rec)) xcol = true;
-      if (Collided((Rectangle){p->pos.x, newy, p->width, p->height}, envobjs->arr[i].rec)) ycol = true;
+    if (!envobjs->arr[i].can_col) continue;
+    if (Collided((Rectangle){newx, p->pos.y, p->width, p->height}, envobjs->arr[i].rec))
+      xcol = true;
+    if (Collided((Rectangle){p->pos.x, newy, p->width, p->height}, envobjs->arr[i].rec))
+      ycol = true;
   }
-  if (!xcol)
-    p->pos.x = newx;
-  if (!ycol) 
-    p->pos.y = newy;
+  if (!xcol) p->pos.x = newx;
+  if (!ycol) p->pos.y = newy;
   c->target = p->pos;
+}
+
+void AddRecSqrs(EnvObjs* envobjs, Rectangle rec, Color col, bool can_col) {
+  for (int x = 0; x < rec.x; x++) {
+    for (int y = 0; y < rec.y; y++) {
+      envobjs->arr[envobjs->count] = (EnvObj){(Rectangle){rec.x+(x*tile_size), rec.y+(y*tile_size), tile_size,tile_size}, col, can_col};
+      envobjs->count++;
+    }
+  }
+}
+
+int ddx[4] = {1, 1, 0, 0};
+int ddy[4] = {0, 0, 1, 1};
+int dsx[4] = {0, 0, 0, 1};
+int dsy[4] = {0, 1, 0, 0};
+void CreateRoom(Rectangle rec, EnvObjs* envobjs) {
+  for (int d = 0; d < 4; d++) {
+    AddRecSqrs(envobjs, (Rectangle){rec.x + dsx[d] * (rec.width - 1) * tile_size,
+                                                 rec.y + dsy[d] * (rec.height - 1) * tile_size,
+                                                 tile_size * (ddx[d] * (rec.width - 1) + 1),
+                                                 tile_size * (ddy[d] * (rec.height - 1) + 1)}, wall_color, true);
+  }
+  AddRecSqrs(envobjs, 
+  (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2) * tile_size,
+                           (rec.height - 2) * tile_size},
+               tile_color, false);
 }
 
 int main(void) {
@@ -56,9 +87,11 @@ int main(void) {
 
   InitWindow(screenWidth, screenHeight, "Game");
   Player player = {0};
-  player.width = 50;
-  player.height = 50;
-  player.speed = 1;
+  player.pos.x = 150;
+  player.pos.y = 150;
+  player.width = 64;
+  player.height = 64;
+  player.speed = 5;
 
   Camera2D camera = {0};
   camera.target = player.pos;
@@ -67,9 +100,7 @@ int main(void) {
   camera.zoom = 1.0f;
 
   EnvObjs envobjs = {0};
-  EnvObj test_sqr = {(Rectangle){100, 100, 50, 50}, (Color){0, 0, 255, 255}};
-  envobjs.arr[0] = test_sqr;
-  envobjs.count++;
+  CreateRoom((Rectangle){0, 0, 10, 10}, &envobjs);
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
