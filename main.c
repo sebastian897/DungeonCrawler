@@ -4,10 +4,11 @@
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
-#define max_envobjs 25600
-enum { tile_size = 64 };
-Color wall_color = RED;
-Color tile_color = LIGHTGRAY;
+#define max_envobjs 256
+enum { tile_size = 65 };
+Texture2D wall_texture;
+Texture2D wall_corner_texture;
+Texture2D tile_texture;
 
 typedef struct Player {
   Vector2 pos;
@@ -18,7 +19,8 @@ typedef struct Player {
 
 typedef struct EnvObj {
   Rectangle rec;
-  Color col;
+  Texture2D texture;
+  int rot;
   bool can_col;
 } EnvObj;
 
@@ -55,10 +57,12 @@ void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
   c->target = p->pos;
 }
 
-void AddRecSqrs(EnvObjs* envobjs, Rectangle rec, Color col, bool can_col) {
-  for (int x = 0; x < rec.width; x++) {
-    for (int y = 0; y < rec.height; y++) {
-      envobjs->arr[envobjs->count] = (EnvObj){(Rectangle){rec.x+(x*tile_size), rec.y+(y*tile_size), tile_size,tile_size}, col, can_col};
+void AddRecSqrs(EnvObjs* envobjs, Rectangle rec, Texture2D texture, float rot, bool can_col) {
+  for (int y = 0; y < rec.height; y++) {
+    for (int x = 0; x < rec.width; x++) {
+      envobjs->arr[envobjs->count] = (EnvObj){
+          (Rectangle){rec.x + (x * tile_size), rec.y + (y * tile_size), tile_size, tile_size},
+          texture, rot, can_col};
       envobjs->count++;
     }
   }
@@ -68,17 +72,28 @@ int ddx[4] = {1, 1, 0, 0};
 int ddy[4] = {0, 0, 1, 1};
 int dsx[4] = {0, 0, 0, 1};
 int dsy[4] = {0, 1, 0, 0};
+int texture[4] = {2, 0, 1, 3};
+int corner_texture[4] = {0, 1, 2, 3};
+int cx[4] = {0, 1, 1, 0};
+int cy[4] = {0, 0, 1, 1};
+int rx[4] = {0, 1, 1, 0};
+int ry[4] = {0, 0, 1, 1};
 void CreateRoom(Rectangle rec, EnvObjs* envobjs) {
   for (int d = 0; d < 4; d++) {
-    AddRecSqrs(envobjs, (Rectangle){rec.x + dsx[d] * (rec.width - 1) * tile_size,
-                                                 rec.y + dsy[d] * (rec.height - 1) * tile_size,
-                                                 (ddx[d] * (rec.width - 1) + 1),
-                                                 (ddy[d] * (rec.height - 1) + 1)}, wall_color, true);
+    AddRecSqrs(envobjs,
+               (Rectangle){rec.x + (dsx[d] * (rec.width) + ddx[d]) * tile_size,
+                           rec.y + (dsy[d] * (rec.height) + ddy[d]) * tile_size,
+                           (ddx[d] * (rec.width - 2) + 1), (ddy[d] * (rec.height - 2) + 1)},
+               wall_texture, texture[d], true);
+    envobjs->arr[envobjs->count] =
+        (EnvObj){(Rectangle){rec.x + (cx[d] * (rec.width)) * tile_size, rec.y + (cy[d] *
+        (rec.height))*tile_size, tile_size, tile_size},
+                 wall_corner_texture, corner_texture[d], false};
+    envobjs->count++;
   }
-  AddRecSqrs(envobjs, 
-  (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2),
-                           (rec.height - 2)},
-               tile_color, false);
+  AddRecSqrs(envobjs,
+             (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2), (rec.height - 2)},
+             tile_texture, 0, false);
 }
 
 int main(void) {
@@ -86,6 +101,17 @@ int main(void) {
   const int screenHeight = 450;
 
   InitWindow(screenWidth, screenHeight, "Game");
+
+  char* wall_png = "../resources/wall.png";
+  Image wall_img = LoadImage(wall_png);
+  ImageCrop(&wall_img, (Rectangle){0, 0, tile_size, tile_size});
+  wall_texture = LoadTextureFromImage(wall_img);
+
+  char* wall_corner_png = "../resources/wall_corner.png";
+  Image wall_corner_img = LoadImage(wall_corner_png);
+  ImageCrop(&wall_corner_img, (Rectangle){0, 0, tile_size, tile_size});
+  wall_corner_texture = LoadTextureFromImage(wall_corner_img);
+
   Player player = {0};
   player.pos.x = 150;
   player.pos.y = 150;
@@ -102,6 +128,11 @@ int main(void) {
   EnvObjs envobjs = {0};
   CreateRoom((Rectangle){0, 0, 10, 10}, &envobjs);
 
+  // envobjs.arr[0] =
+  //     (EnvObj){(Rectangle){0 , 0, tile_size, tile_size},
+  //              wall_texture, 0, false};
+  //     envobjs.count++;
+
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
     MovePlayer(&player, &camera, &envobjs);
@@ -110,16 +141,21 @@ int main(void) {
     ClearBackground(RAYWHITE);
 
     BeginMode2D(camera);
+
     for (int i = 0; i < envobjs.count; i++) {
-      DrawRectangleRec(envobjs.arr[i].rec, envobjs.arr[i].col);
+      DrawTexturePro(envobjs.arr[i].texture, (Rectangle){0, 0, tile_size, tile_size},
+                     (Rectangle){envobjs.arr[i].rec.x + rx[envobjs.arr[i].rot] * tile_size,
+                                 envobjs.arr[i].rec.y + ry[envobjs.arr[i].rot] * tile_size,
+                                 tile_size, tile_size},
+                     (Vector2){0, 0}, envobjs.arr[i].rot * 90, WHITE);
     }
-    DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, 50, 50}, (Color){0, 0, 0, 255});
+    DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, player.width, player.height},
+                     (Color){0, 0, 0, 255});
     EndMode2D();
-    // DrawText("Congrats! You created your first window!", 190, 200, 20, LIGHTGRAY);
 
     EndDrawing();
   }
-
+  for (int t = 0; t < 4; t++) UnloadTexture(wall_texture);
   CloseWindow();
   return 0;
 }
