@@ -105,7 +105,7 @@ void RotateEnvObjs(Map* map, Vector2 origin, int rot) {
   for (int my = 0; my < map_max_height; my++) {
     for (int mx = 0; mx < map_max_width; mx++) {
       Vector2 new_pos = Vector2Rotate(Vector2Subtract(map->arr[mx][my].pos, origin), PI / 2 * rot);
-      map->arr[mx][my].pos = (Vector2){origin.x + new_pos.x,origin.y + new_pos.y};
+      map->arr[mx][my].pos = (Vector2){origin.x + new_pos.x, origin.y + new_pos.y};
       map->arr[mx][my].rot = (map->arr[mx][my].rot + rot) % 4;
     }
   }
