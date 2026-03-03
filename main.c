@@ -1,7 +1,9 @@
 #include <raylib.h>
 #include <stdbool.h>
 #include <stddef.h>
+
 #include "raymath.h"
+
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -29,6 +31,10 @@ typedef struct EnvObjs {
   EnvObj arr[max_envobjs];
   int count;
 } EnvObjs;
+
+Vector2 GetPosOfRec(Rectangle rec) {
+  return (Vector2){rec.x, rec.y};
+}
 
 bool PBetween2P(float p, float p2l, float p2h) {
   return p >= p2l && p <= p2h;
@@ -69,20 +75,10 @@ void RecSqrs(EnvObjs* envobjs, Rectangle rec, Texture2D texture, float rot, bool
   }
 }
 
-int ddx[4] = {1, 1, 0, 0};
-int ddy[4] = {0, 0, 1, 1};
-int dsx[4] = {0, 0, 0, 1};
-int dsy[4] = {0, 1, 0, 0};
 int texture[4] = {2, 0, 1, 3};
 int corner_texture[4] = {0, 1, 2, 3};
-int cx[4] = {0, 1, 1, 0};
-int cy[4] = {0, 0, 1, 1};
 int rx[4] = {0, 1, 1, 0};
 int ry[4] = {0, 0, 1, 1};
-
-int ax[4] = {0, 7, 1, 0};
-int ay[4] = {0, 0, 1, 1};
-
 
 void AddObjsToEnvObjs(EnvObjs* envobjs, EnvObjs newenvobjs) {
   for (int o = 0; o < newenvobjs.count; o++) {
@@ -93,37 +89,35 @@ void AddObjsToEnvObjs(EnvObjs* envobjs, EnvObjs newenvobjs) {
 
 void RotateEnvObjs(EnvObjs* envobjs, Vector2 origin, int rot) {
   for (int o = 0; o < envobjs->count; o++) {
-    Vector2 new_pos = Vector2Rotate((Vector2){envobjs->arr[o].rec.x - origin.x,envobjs->arr[o].rec.y - origin.y}, PI/2*rot);
-    envobjs->arr[o].rec = (Rectangle){origin.x+new_pos.x, origin.y+new_pos.y, envobjs->arr[o].rec.width, envobjs->arr[o].rec.height};
+    Vector2 new_pos =
+        Vector2Rotate((Vector2){envobjs->arr[o].rec.x - origin.x, envobjs->arr[o].rec.y - origin.y},
+                      PI / 2 * rot);
+    envobjs->arr[o].rec = (Rectangle){origin.x + new_pos.x, origin.y + new_pos.y,
+                                      envobjs->arr[o].rec.width, envobjs->arr[o].rec.height};
     envobjs->arr[o].rot = (envobjs->arr[o].rot + rot) % 4;
   }
 }
 
 void Wall(EnvObjs* wallobjs, Rectangle rec) {
-  RecSqrs(wallobjs,
-          (Rectangle){rec.x+tile_size, rec.y, rec.width,
-                      1},
-          wall_texture, texture[0], false);
-  wallobjs->arr[wallobjs->count] =
-      (EnvObj){(Rectangle){rec.x,
-                           rec.y, tile_size, tile_size},
-               wall_corner_texture, corner_texture[0], false};
+  RecSqrs(wallobjs, (Rectangle){rec.x + tile_size, rec.y, rec.width, 1}, wall_texture, texture[0],
+          true);
+  wallobjs->arr[wallobjs->count] = (EnvObj){(Rectangle){rec.x, rec.y, tile_size, tile_size},
+                                            wall_corner_texture, corner_texture[0], true};
   wallobjs->count++;
 }
 
 void CreateRoom(EnvObjs* envobjs, Rectangle rec) {
   for (int d = 0; d < 4; d++) {
-    EnvObjs new_wall = {0};
-    Wall(&new_wall,
-         (Rectangle){rec.x + (rx[d] * ((rec.width - 2) + 1)) * tile_size,
-                     rec.y + (ry[d] * ((rec.height - 2) + 1)) * tile_size, rec.width-2,
-                     0});
-    RotateEnvObjs(&new_wall, (Vector2){rec.x + (rx[d] * ((rec.width - 2) + 1)) * tile_size, rec.y + (ry[d] * ((rec.height - 2) + 1)) * tile_size}, d);
-    AddObjsToEnvObjs(envobjs, new_wall);
+    EnvObjs new_wall_objs = {0};
+    Rectangle new_wall = {rec.x + (rx[d] * ((rec.width - 2) + 1)) * tile_size,
+                          rec.y + (ry[d] * ((rec.height - 2) + 1)) * tile_size, rec.width - 2, 1};
+    Wall(&new_wall_objs, new_wall);
+    RotateEnvObjs(&new_wall_objs, GetPosOfRec(new_wall), d);
+    AddObjsToEnvObjs(envobjs, new_wall_objs);
   }
   RecSqrs(envobjs,
-             (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2), (rec.height -
-             2)}, tile_texture, 0, false);
+          (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2), (rec.height - 2)},
+          tile_texture, 0, false);
 }
 
 int main(void) {
@@ -148,8 +142,8 @@ int main(void) {
   tile_texture = LoadTextureFromImage(tile_img);
 
   Player player = {0};
-  player.pos.x = 0;
-  player.pos.y = 0;
+  player.pos.x = 150;
+  player.pos.y = 150;
   player.width = 64;
   player.height = 64;
   player.speed = 5;
