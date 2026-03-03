@@ -1,11 +1,12 @@
 #include <raylib.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "raymath.h"
 
 #define ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
 #define max_envobjs 256
-enum { tile_size = 65 };
+enum { tile_size = 64 };
 Texture2D wall_texture;
 Texture2D wall_corner_texture;
 Texture2D tile_texture;
@@ -57,7 +58,7 @@ void MovePlayer(Player* p, Camera2D* c, EnvObjs* envobjs) {
   c->target = p->pos;
 }
 
-void AddRecSqrs(EnvObjs* envobjs, Rectangle rec, Texture2D texture, float rot, bool can_col) {
+void RecSqrs(EnvObjs* envobjs, Rectangle rec, Texture2D texture, float rot, bool can_col) {
   for (int y = 0; y < rec.height; y++) {
     for (int x = 0; x < rec.width; x++) {
       envobjs->arr[envobjs->count] = (EnvObj){
@@ -78,22 +79,51 @@ int cx[4] = {0, 1, 1, 0};
 int cy[4] = {0, 0, 1, 1};
 int rx[4] = {0, 1, 1, 0};
 int ry[4] = {0, 0, 1, 1};
-void CreateRoom(Rectangle rec, EnvObjs* envobjs) {
-  for (int d = 0; d < 4; d++) {
-    AddRecSqrs(envobjs,
-               (Rectangle){rec.x + (dsx[d] * (rec.width) + ddx[d]) * tile_size,
-                           rec.y + (dsy[d] * (rec.height) + ddy[d]) * tile_size,
-                           (ddx[d] * (rec.width - 2) + 1), (ddy[d] * (rec.height - 2) + 1)},
-               wall_texture, texture[d], true);
-    envobjs->arr[envobjs->count] =
-        (EnvObj){(Rectangle){rec.x + (cx[d] * (rec.width)) * tile_size, rec.y + (cy[d] *
-        (rec.height))*tile_size, tile_size, tile_size},
-                 wall_corner_texture, corner_texture[d], false};
+
+int ax[4] = {0, 7, 1, 0};
+int ay[4] = {0, 0, 1, 1};
+
+
+void AddObjsToEnvObjs(EnvObjs* envobjs, EnvObjs newenvobjs) {
+  for (int o = 0; o < newenvobjs.count; o++) {
+    envobjs->arr[envobjs->count] = newenvobjs.arr[o];
     envobjs->count++;
   }
-  AddRecSqrs(envobjs,
-             (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2), (rec.height - 2)},
-             tile_texture, 0, false);
+}
+
+void RotateEnvObjs(EnvObjs* envobjs, Vector2 origin, int rot) {
+  for (int o = 0; o < envobjs->count; o++) {
+    Vector2 new_pos = Vector2Rotate((Vector2){envobjs->arr[o].rec.x - origin.x,envobjs->arr[o].rec.y - origin.y}, PI/2*rot);
+    envobjs->arr[o].rec = (Rectangle){origin.x+new_pos.x, origin.y+new_pos.y, envobjs->arr[o].rec.width, envobjs->arr[o].rec.height};
+    envobjs->arr[o].rot = (envobjs->arr[o].rot + rot) % 4;
+  }
+}
+
+void Wall(EnvObjs* wallobjs, Rectangle rec) {
+  RecSqrs(wallobjs,
+          (Rectangle){rec.x+tile_size, rec.y, rec.width,
+                      1},
+          wall_texture, texture[0], false);
+  wallobjs->arr[wallobjs->count] =
+      (EnvObj){(Rectangle){rec.x,
+                           rec.y, tile_size, tile_size},
+               wall_corner_texture, corner_texture[0], false};
+  wallobjs->count++;
+}
+
+void CreateRoom(EnvObjs* envobjs, Rectangle rec) {
+  for (int d = 0; d < 4; d++) {
+    EnvObjs new_wall = {0};
+    Wall(&new_wall,
+         (Rectangle){rec.x + (rx[d] * ((rec.width - 2) + 1)) * tile_size,
+                     rec.y + (ry[d] * ((rec.height - 2) + 1)) * tile_size, rec.width-2,
+                     0});
+    RotateEnvObjs(&new_wall, (Vector2){rec.x + (rx[d] * ((rec.width - 2) + 1)) * tile_size, rec.y + (ry[d] * ((rec.height - 2) + 1)) * tile_size}, d);
+    AddObjsToEnvObjs(envobjs, new_wall);
+  }
+  RecSqrs(envobjs,
+             (Rectangle){rec.x + tile_size, rec.y + tile_size, (rec.width - 2), (rec.height -
+             2)}, tile_texture, 0, false);
 }
 
 int main(void) {
@@ -112,9 +142,14 @@ int main(void) {
   ImageCrop(&wall_corner_img, (Rectangle){0, 0, tile_size, tile_size});
   wall_corner_texture = LoadTextureFromImage(wall_corner_img);
 
+  char* tile_png = "../resources/tile.png";
+  Image tile_img = LoadImage(tile_png);
+  ImageCrop(&tile_img, (Rectangle){0, 0, tile_size, tile_size});
+  tile_texture = LoadTextureFromImage(tile_img);
+
   Player player = {0};
-  player.pos.x = 150;
-  player.pos.y = 150;
+  player.pos.x = 0;
+  player.pos.y = 0;
   player.width = 64;
   player.height = 64;
   player.speed = 5;
@@ -126,13 +161,14 @@ int main(void) {
   camera.zoom = 1.0f;
 
   EnvObjs envobjs = {0};
-  CreateRoom((Rectangle){0, 0, 10, 10}, &envobjs);
+  CreateRoom(&envobjs, (Rectangle){0, 0, 10, 10});
 
+  // Wall(&envobjs, (Rectangle){0 , 0, 5,1});
   // envobjs.arr[0] =
   //     (EnvObj){(Rectangle){0 , 0, tile_size, tile_size},
   //              wall_texture, 0, false};
   //     envobjs.count++;
-
+  // RotateEnvObjs(&envobjs, (Vector2){0,0}, 1);
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
     MovePlayer(&player, &camera, &envobjs);
