@@ -96,6 +96,16 @@ ScreenPos Vector2ToScreenPos(V2 v) {
   return (ScreenPos){v.x * tile_size, v.y * tile_size};
 }
 
+void ShiftStructure(Structure* source, Structure* dest, V2 v) {
+  for (int ty = 0; ty < structure_max_height; ty++) {
+    for (int tx = 0; tx < structure_max_width; tx++) {
+      if (source->arr[ty][tx].texture.id == 0) continue;
+      V2 newpos = AddV2((V2){tx, ty}, v);
+      dest->arr[newpos.y][newpos.x] = DeepCopyMapTile(source->arr[ty][tx]);
+    }
+  }
+}
+
 bool PBetween2P(float p, float p2l, float p2h) {
   return p >= p2l && p <= p2h;
 }
@@ -141,31 +151,39 @@ void AddStructureToEnvObjs(Map* map, Structure* tiles) {
   // for (int my = 0; my < map_max_height; my++) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
-      // if (map->arr[mx][my].texture.id != 0)
+      if (tiles->arr[ty][tx].texture.id == 0) continue;
       V2 newpos = AddV2(tiles->pos, (V2){tx, ty});
       map->arr[newpos.y][newpos.x] = DeepCopyMapTile(tiles->arr[ty][tx]);
     }
   }
 }
 
-void RotateEnvObjs(Structure* structure, V2 origin, int rot, V2 shift) {
-  for (int ty = 0; ty < structure_max_height; ty++) {
-    for (int tx = 0; tx < structure_max_width; tx++) {
-      if (structure->arr[ty][tx].texture.id ==0) continue;
+int sxw[4] = {0, 0, 1, 0};
+int syw[4] = {0, 0, 0, 1};
+int sxh[4] = {0, 1, 0, 0};
+int syh[4] = {0, 0, 1, 0};
+void RotateEnvObjs(Structure* source, Structure* dest, Rec size_envobjs, int rot) {
+  V2 shift = {sxw[rot] * size_envobjs.width + sxh[rot] * size_envobjs.height,
+              syw[rot] * size_envobjs.width + syh[rot] * size_envobjs.height};
+  for (int ty = 0; ty < 2*structure_max_height; ty++) {
+    for (int tx = 0; tx < 2*structure_max_width; tx++) {
+      if (source->arr[ty][tx].texture.id == 0) continue;
       // V2 shift = {4,0};
       V2 old_pos = (V2){tx, ty};
-      V2 new_pos = AddV2(
-          Vector2ToV2(Vector2Rotate(V2ToVector2(SubV2(old_pos, origin)), PI / 2 * rot)), origin);
-      V2 new_pos2 = AddV2(new_pos, shift);
-      structure->arr[new_pos2.y][new_pos2.x] = DeepCopyMapTile(structure->arr[ty][tx]);
-      structure->arr[new_pos2.y][new_pos2.x].rot = (structure->arr[ty][tx].rot + rot) % 4;
-      if (!V2Equal(new_pos2, new_pos2)) structure->arr[ty][tx] = (MapTile){0};
+      V2 new_pos = AddV2(Vector2ToV2(Vector2Rotate(
+                             V2ToVector2(SubV2(old_pos, GetPosOfRec(size_envobjs))), PI / 2 * rot)),
+                         GetPosOfRec(size_envobjs));
+      V2 rot_factor = SubV2(new_pos, (V2){(rx[rot] * 1), (ry[rot] * 1)});
+      V2 new_pos2 = AddV2(rot_factor, shift);
+      dest->arr[new_pos2.y][new_pos2.x] = DeepCopyMapTile(source->arr[ty][tx]);
+      dest->arr[new_pos2.y][new_pos2.x].rot = (source->arr[ty][tx].rot + rot) % 4;
+      // if (!V2Equal(new_pos2, new_pos2)) source->arr[ty][tx] = (MapTile){0};
     }
   }
 }
 
 void CreateWall(Structure* wallobjs, Rec rec) {
-  RecSqrs(wallobjs, (Rec){rec.x + 1, rec.y, rec.width, rec.height}, wall_texture, texture[0],
+  RecSqrs(wallobjs, (Rec){rec.x + 1, rec.y, rec.width - 1, rec.height}, wall_texture, texture[0],
           false);
   wallobjs->arr[rec.y][rec.x] = (MapTile){wall_corner_texture, corner_texture[0], false};
 }
@@ -173,14 +191,17 @@ void CreateWall(Structure* wallobjs, Rec rec) {
 void CreateRoom(Map* map, Rec rec) {
   for (int d = 0; d < 4; d++) {
     Structure new_wall_objs = {0};
-    Rec new_wall = {rec.x + (rx[d] * ((rec.width - 2) + 1)),
-                    rec.y + (ry[d] * ((rec.height - 2) + 1)), rec.width - 2, 1};
+    Rec new_wall = {rec.x + (sxh[d] * (rec.width-1) + sxw[d]),
+                    rec.y + (syh[d] * (rec.height-1) + syw[d]), rec.width - 1, 1};
     CreateWall(&new_wall_objs, new_wall);
-    RotateEnvObjs(&new_wall_objs, GetPosOfRec(new_wall), d, (V2){rec.width-1,rec.height-1});
-    AddStructureToEnvObjs(map, &new_wall_objs);
+    Structure rot_new_wall_objs = {0};
+    RotateEnvObjs(&new_wall_objs, &rot_new_wall_objs, new_wall, d);
+    AddStructureToEnvObjs(map, &rot_new_wall_objs);
   }
-  // RecSqrs(map, (Rec){rec.x, rec.y, (rec.width - 2), (rec.height - 2)},
-  //         tile_texture, 0, false);
+  Structure new_floor_objs = {0};
+  RecSqrs(&new_floor_objs, (Rec){rec.x + 1, rec.y + 1, (rec.width - 2), (rec.height - 2)},
+          tile_texture, 0, false);
+    AddStructureToEnvObjs(map, &new_floor_objs);
 }
 
 int main(void) {
@@ -218,18 +239,30 @@ int main(void) {
   camera.zoom = 1.0f;
 
   Map map = {0};
-  // CreateRoom(&map, (Rec){0, 0, 10, 10});
+  CreateRoom(&map, (Rec){0, 0, 10, 10});
   // RecSqrs(&map, (Rec){1, 0, 5, 1}, wall_texture, texture[0], true);
   // Wall(&map, (Rec){0 , 0, 5,1});
   // RotateEnvObjs(&map, GetPosOfRec((Rec){0,0,0,0}), 1);
 
   Rec rec = {0, 0, 5, 1};
-  Structure new_wall_objs = {0};
-  Rec new_wall = {rec.x + (rx[0] * ((rec.width - 2) + 1)), rec.y + (ry[0] * ((rec.height - 2) + 1)),
-                  rec.width - 2, 1};
-  CreateWall(&new_wall_objs, new_wall);
-  RotateEnvObjs(&new_wall_objs, GetPosOfRec(new_wall), 1, (V2){rec.width-1,rec.height-1});
-  AddStructureToEnvObjs(&map, &new_wall_objs);
+
+  // Structure new_wall_objs = {0};
+  // Rec new_wall = {rec.x + (rx[0] * ((rec.width - 2) + 1)), rec.y + (ry[0] * ((rec.height - 2) +
+  // 1)),
+  //                 rec.width - 2, 1};
+  // CreateWall(&new_wall_objs, new_wall);
+  // // Structure rot_new_wall_objs = {0};
+  // // RotateEnvObjs(&new_wall_objs, &rot_new_wall_objs, GetPosOfRec(new_wall), 1,
+  // (V2){rec.width-1,rec.height-1}); AddStructureToEnvObjs(&map, &new_wall_objs);
+
+  // Structure new_wall_objs2 = {0};
+  // Rec new_wall2 = {rec.x + (rx[0] * ((rec.width - 2) + 1)),
+  //                  rec.y + (ry[0] * ((rec.height - 2) + 1)), rec.width - 1, 1};
+  // CreateWall(&new_wall_objs2, new_wall2);
+  // Structure rot_new_wall_objs2 = {0};
+  // int rot = 2;
+  // RotateEnvObjs(&new_wall_objs2, &rot_new_wall_objs2, new_wall2, rot);
+  // AddStructureToEnvObjs(&map, &rot_new_wall_objs2);
 
   // map.arr[0][0] =
   //     (MapTile){(Vector2){0 , 0},
