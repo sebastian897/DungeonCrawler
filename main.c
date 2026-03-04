@@ -1,6 +1,8 @@
+#include <math.h>
 #include <raylib.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #include "raymath.h"
 
@@ -10,16 +12,32 @@
 #define map_max_height 64
 #define structure_max_width 16
 #define structure_max_height 16
-enum { tile_size = 64, hallway_size = 2 };
+enum { tile_size = 64, hallway_size = 2, num_chars = 1 };
 Texture2D wall_texture;
 Texture2D wall_corner_texture;
 Texture2D tile_texture;
+
+typedef struct Animation {
+  int curr_sprite;
+  int anim_speed;
+  Vector2 facing;
+} Animation;
+
+typedef struct Character {
+  char* name;
+  Texture2D sprite_sheet;
+  int stil_sprite;
+  int start_walk_sprite;
+  int end_walk_sprite;
+  Animation anim;
+} Character;
 
 typedef struct Player {
   Vector2 pos;
   int width;
   int height;
   float speed;
+  Character character;
 } Player;
 
 typedef struct V2 {
@@ -58,11 +76,6 @@ typedef struct Structure {
   MapTile arr[map_max_height][map_max_width];
   V2 pos;
 } Structure;
-
-// Structure DeepCopyStructure() {
-
-//   return (Structure){tiles->arr[ty][tx].texture};
-// }
 
 MapTile DeepCopyMapTile(MapTile tile) {
   return (MapTile){tile.texture, tile.rot, tile.can_col};
@@ -117,9 +130,11 @@ bool Collided(ScreenPos r1, ScreenPos r2) {
           PBetween2P(r1.y + tile_size, r2.y, r2.y + tile_size));
 }
 
+int rotation[4] = {0, 1, 2, 3};
 void MovePlayer(Player* p, Camera2D* c, Map* map) {
-  float newx = p->pos.x + (IsKeyDown(KEY_D) - IsKeyDown(KEY_A)) * p->speed;
-  float newy = p->pos.y + (IsKeyDown(KEY_S) - IsKeyDown(KEY_W)) * p->speed;
+  V2 dir = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
+  int newx = p->pos.x + dir.x * p->speed;
+  int newy = p->pos.y + dir.y * p->speed;
   bool xcol = false;
   bool ycol = false;
   for (int my = 0; my < map_max_height; my++) {
@@ -131,6 +146,7 @@ void MovePlayer(Player* p, Camera2D* c, Map* map) {
   }
   if (!xcol) p->pos.x = newx;
   if (!ycol) p->pos.y = newy;
+  if (!(dir.x == 0 && dir.y == 0)) p->character.anim.facing = (Vector2){dir.x, dir.y};
   c->target = p->pos;
 }
 
@@ -143,7 +159,6 @@ void RecSqrs(Structure* map, Rec rec, Texture2D texture, float rot, bool can_col
 }
 
 int texture[4] = {2, 0, 1, 3};
-int corner_texture[4] = {0, 1, 2, 3};
 int rx[4] = {0, 1, 1, 0};
 int ry[4] = {0, 0, 1, 1};
 
@@ -164,15 +179,19 @@ int sxh[4] = {0, 1, 0, 0};
 int syh[4] = {0, 0, 1, 0};
 void RotateEnvObjs(Structure* source, Structure* dest, Rec envobjs, int rot) {
   V2 shift = {sxw[rot] * envobjs.width + sxh[rot] * envobjs.height,
-              syw[rot] * envobjs.width + syh[rot] * envobjs.height}; // add to the shape coods so is not negative
-  for (int ty = envobjs.y; ty < envobjs.height+envobjs.y; ty++) {
-    for (int tx = envobjs.x; tx < envobjs.width+envobjs.x; tx++) { // only loop through the exact coods of the envobjs
+              syw[rot] * envobjs.width +
+                  syh[rot] * envobjs.height};  // add to the shape coods so is not negative
+  for (int ty = envobjs.y; ty < envobjs.height + envobjs.y; ty++) {
+    for (int tx = envobjs.x; tx < envobjs.width + envobjs.x;
+         tx++) {  // only loop through the exact coods of the envobjs
       if (source->arr[ty][tx].texture.id == 0) continue;
       V2 old_pos = (V2){tx, ty};
-      V2 new_pos = AddV2(Vector2ToV2(Vector2Rotate(
-                             V2ToVector2(SubV2(old_pos, GetPosOfRec(envobjs))), PI / 2 * rot)),
-                         GetPosOfRec(envobjs)); // just rotate the coods of the tiles 
-      V2 rot_factor = SubV2(new_pos, (V2){(rx[rot] * 1), (ry[rot] * 1)}); // shift the top left corner of each tile
+      V2 new_pos =
+          AddV2(Vector2ToV2(Vector2Rotate(V2ToVector2(SubV2(old_pos, GetPosOfRec(envobjs))),
+                                          rot * 90 * DEG2RAD)),
+                GetPosOfRec(envobjs));  // just rotate the coods of the tiles
+      V2 rot_factor = SubV2(
+          new_pos, (V2){(rx[rot] * 1), (ry[rot] * 1)});  // shift the top left corner of each tile
       V2 new_pos2 = AddV2(rot_factor, shift);
       dest->arr[new_pos2.y][new_pos2.x] = DeepCopyMapTile(source->arr[ty][tx]);
       dest->arr[new_pos2.y][new_pos2.x].rot = (source->arr[ty][tx].rot + rot) % 4;
@@ -182,22 +201,22 @@ void RotateEnvObjs(Structure* source, Structure* dest, Rec envobjs, int rot) {
 
 void CreateWall(Structure* wallobjs, Rec rec) {
   RecSqrs(wallobjs, (Rec){rec.x + 1, rec.y, rec.width - 1, rec.height}, wall_texture, texture[0],
-          true); // create the middle wall squares
-  wallobjs->arr[rec.y][rec.x] = (MapTile){wall_corner_texture, corner_texture[0], true}; // create top left corner
+          true);  // create the middle wall squares
+  wallobjs->arr[rec.y][rec.x] =
+      (MapTile){wall_corner_texture, rotation[0], true};  // create top left corner
 }
 
 void CreateRoom(Map* map, Rec rec) {
   for (int d = 0; d < 4; d++) {
     Structure new_wall_objs = {0};
-    Rec new_wall = {rec.x,
-                    rec.y, rec.width - 1, 1};
+    Rec new_wall = {rec.x, rec.y, rec.width - 1, 1};
     CreateWall(&new_wall_objs, new_wall);
 
     Structure rot_new_wall_objs = {0};
     RotateEnvObjs(&new_wall_objs, &rot_new_wall_objs, new_wall, d);
 
     Structure shift_new_wall_objs = {0};
-    V2 shift = {sxh[d] * (rec.width-1) + sxw[d], syh[d] * (rec.height-1) + syw[d]};
+    V2 shift = {sxh[d] * (rec.width - 1) + sxw[d], syh[d] * (rec.height - 1) + syw[d]};
     ShiftStructure(&rot_new_wall_objs, &shift_new_wall_objs, shift);
 
     AddStructureToEnvObjs(map, &shift_new_wall_objs);
@@ -205,7 +224,7 @@ void CreateRoom(Map* map, Rec rec) {
   Structure new_floor_objs = {0};
   RecSqrs(&new_floor_objs, (Rec){rec.x + 1, rec.y + 1, (rec.width - 2), (rec.height - 2)},
           tile_texture, 0, false);
-    AddStructureToEnvObjs(map, &new_floor_objs);
+  AddStructureToEnvObjs(map, &new_floor_objs);
 }
 
 int main(void) {
@@ -229,12 +248,16 @@ int main(void) {
   ImageCrop(&tile_img, (Rectangle){0, 0, tile_size, tile_size});
   tile_texture = LoadTextureFromImage(tile_img);
 
+  Character Chars[num_chars] = {
+      (Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2, 5}};
+
   Player player = {0};
   player.pos.x = 150;
   player.pos.y = 150;
   player.width = 64;
   player.height = 64;
   player.speed = 5;
+  player.character = Chars[0];
 
   Camera2D camera = {0};
   camera.target = player.pos;
@@ -258,14 +281,24 @@ int main(void) {
     for (int my = 0; my < map_max_height; my++) {
       for (int mx = 0; mx < map_max_width; mx++) {
         DrawTexturePro(
-            map.arr[my][mx].texture, (Rectangle){0, 0, tile_size, tile_size},
-            (Rectangle){(mx + rx[map.arr[my][mx].rot]) * tile_size,
-                        (my + ry[map.arr[my][mx].rot]) * tile_size, tile_size, tile_size},
-            (Vector2){0, 0}, map.arr[my][mx].rot * 90, WHITE);
+            map.arr[my][mx].texture,
+            (Rectangle){0, 0, map.arr[my][mx].texture.width, map.arr[my][mx].texture.height},
+            (Rectangle){(mx + 1 / 2.0) * tile_size, (my + 1 / 2.0) * tile_size, tile_size,
+                        tile_size},
+            (Vector2){tile_size / 2.0, tile_size / 2.0}, map.arr[my][mx].rot * 90, WHITE);
       }
     }
-    DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, player.width, player.height},
-                     (Color){0, 0, 0, 255});
+    DrawTexturePro(
+        player.character.sprite_sheet,
+        (Rectangle){player.character.anim.curr_sprite * player.character.sprite_sheet.width, 0,
+                    player.width, player.height},
+        (Rectangle){player.pos.x + player.width / 2.0, player.pos.y + player.height / 2.0,
+                    player.width, player.height},
+        (Vector2){player.width / 2.0, player.height / 2.0},
+        (atan2(player.character.anim.facing.y, player.character.anim.facing.x) + PI / 2) * RAD2DEG,
+        WHITE);
+    // DrawRectangleRec((Rectangle){player.pos.x, player.pos.y, player.width, player.height},
+    //                  (Color){0, 0, 0, 255});
     EndMode2D();
 
     EndDrawing();
