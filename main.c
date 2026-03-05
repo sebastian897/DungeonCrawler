@@ -62,8 +62,8 @@ typedef struct MapPos {
 } MapPos;
 
 typedef struct Pattern {
-  MapTile old_pattern[4];
-  MapTile new_pattern[4];
+  MapTile old_pattern[3];
+  MapTile new_pattern[3];
 } Pattern;
 
 typedef struct ScreenPos {
@@ -127,7 +127,16 @@ ScreenPos V2ToScreenPos(V2 v) {
   return (ScreenPos){v.x * tile_size, v.y * tile_size};
 }
 
-void ShiftStructure(Structure* source, Structure* dest, V2 v) {
+void AddContentsToStruct(Structure* dest, Structure* source) {
+  for (int ty = 0; ty < structure_max_height; ty++) {
+    for (int tx = 0; tx < structure_max_width; tx++) {
+      if (source->arr[ty][tx].texture.id == 0) continue;
+      dest->arr[ty][tx] = DeepCopyMapTile(source->arr[ty][tx]);
+    }
+  }
+}
+
+void ShiftStructure(Structure* dest, Structure* source, V2 v) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
       if (source->arr[ty][tx].texture.id == 0) continue;
@@ -223,7 +232,6 @@ int wrx[4] = {1, 0, 1, 0};
 int wry[4] = {0, 1, 0, 1};
 
 void AddStructureToEnvObjs(Map* map, Structure* tiles) {
-  // for (int my = 0; my < map_max_height; my++) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
       if (tiles->arr[ty][tx].texture.id == 0) continue;
@@ -237,7 +245,7 @@ int sxw[4] = {0, 0, 1, 0};
 int syw[4] = {0, 0, 0, 1};
 int sxh[4] = {0, 1, 0, 0};
 int syh[4] = {0, 0, 1, 0};
-void RotateEnvObjs(Structure* source, Structure* dest, Rec envobjs, int rot) {
+void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
   V2 shift = {sxw[rot] * envobjs.width + sxh[rot] * envobjs.height,
               syw[rot] * envobjs.width +
                   syh[rot] * envobjs.height};  // add to the shape coods so is not negative
@@ -267,24 +275,27 @@ void CreateWall(Structure* wallobjs, Rec rec) {
 }
 
 void CreateRoom(Map* map, Rec rec) {
+  Structure room = {0};
+  room.pos = (V2){rec.x, rec.y};
   for (int d = 0; d < 4; d++) {
     Structure new_wall_objs = {0};
-    Rec new_wall = {rec.x, rec.y, (wrx[d] * rec.width + wry[d] * rec.height) - 1, 1};
+    Rec new_wall = {0, 0, (wrx[d] * rec.width + wry[d] * rec.height) - 1, 1};
     CreateWall(&new_wall_objs, new_wall);
 
     Structure rot_new_wall_objs = {0};
-    RotateEnvObjs(&new_wall_objs, &rot_new_wall_objs, new_wall, d);
+    RotateEnvObjs(&rot_new_wall_objs, &new_wall_objs, new_wall, d);
 
     Structure shift_new_wall_objs = {0};
     V2 shift = {sxh[d] * (rec.width - 1) + sxw[d], syh[d] * (rec.height - 1) + syw[d]};
-    ShiftStructure(&rot_new_wall_objs, &shift_new_wall_objs, shift);
+    ShiftStructure(&shift_new_wall_objs, &rot_new_wall_objs, shift);
 
-    AddStructureToEnvObjs(map, &shift_new_wall_objs);
+    AddContentsToStruct(&room, &shift_new_wall_objs);
   }
   Structure new_floor_objs = {0};
-  RecSqrs(&new_floor_objs, (Rec){rec.x + 1, rec.y + 1, (rec.width - 2), (rec.height - 2)},
-          tile_texture, 0, false);
-  AddStructureToEnvObjs(map, &new_floor_objs);
+  RecSqrs(&new_floor_objs, (Rec){+1, +1, (rec.width - 2), (rec.height - 2)}, tile_texture, 0,
+          false);
+  AddContentsToStruct(&room, &new_floor_objs);
+  AddStructureToEnvObjs(map, &room);
 }
 
 int dx[4] = {0, 1, 0, -1};
@@ -299,28 +310,32 @@ V2 GetAdjacentToCorner(Map* map, V2 pos) {
   }
   return Adj_tile;
 }
+
+bool IsInBounds(V2 pos) {
+  return pos.x >= 0 && pos.y >= 0 && pos.x < map_max_width && pos.y < map_max_height;
+}
+
 Pattern patterns[1] = {0};
 void ReplaceTileFromPattern(Map* map, Pattern p) {
   for (int my = 0; my < map_max_height; my++) {
     for (int mx = 0; mx < map_max_width; mx++) {
-      // if (my == 1 && mx == 8) {
-      //   bool as = false;
-      // }
-
       for (int d = 0; d < 4; d++) {
         bool ispattern = true;
-        for (int t = 0; t < 4; t++) {
-          V2 newpos = {my + t * dy[d], mx + t * dx[d]};
-          if (newpos.x<0&&newpos.y<0&&newpos.x>map_max_width&&newpos.y>map_max_height) break;
+        for (int t = 0; t < ARRAY_LENGTH(p.old_pattern); t++) {
+          V2 newpos = {mx + t * dx[d], my + t * dy[d]};
+          if (!IsInBounds(newpos)) {
+            ispattern = false;
+            break;
+          }
           if (map->arr[newpos.y][newpos.x].texture.id != p.old_pattern[t].texture.id) {
             ispattern = false;
           }
         }
-        // if (ispattern) {
-        //   for (int t = 0; t < 4; t++) {
-        //     map->arr[my + t * dy[d]][mx + t * dx[d]] = DeepCopyMapTile(p.new_pattern[t]);
-        //   }
-        // }
+        if (ispattern) {
+          for (int t = 0; t < 4; t++) {
+            map->arr[my + t * dy[d]][mx + t * dx[d]] = DeepCopyMapTile(p.new_pattern[t]);
+          }
+        }
       }
     }
   }
@@ -333,7 +348,8 @@ void BreakWallsOnMap(Map* map) {
   //     V2 tile_pos = {mx, my};
   //     MapTile maptile = map->arr[my][mx];
   //     V2 Adj_Corner_Tile = GetAdjacentToCorner(map, tile_pos);
-  //     if (maptile.texture.id == wall_corner_texture.id && V2Equal(Adj_Corner_Tile, V2Empty())) {
+  //     if (maptile.texture.id == wall_corner_texture.id && V2Equal(Adj_Corner_Tile, V2Empty()))
+  //     {
   //     }
   //   }
   // }
@@ -346,35 +362,29 @@ int main(void) {
   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
 
   char* wall_png = "../resources/wall.png";
-  // char* wall_png = "./resources/wall.png";
   Image wall_img = LoadImage(wall_png);
   ImageCrop(&wall_img, (Rectangle){0, 0, tile_size, tile_size});
   wall_texture = LoadTextureFromImage(wall_img);
 
   char* wall_corner_png = "../resources/wall_corner.png";
-  // char* wall_corner_png = "./resources/wall_corner.png";
   Image wall_corner_img = LoadImage(wall_corner_png);
   ImageCrop(&wall_corner_img, (Rectangle){0, 0, tile_size, tile_size});
   wall_corner_texture = LoadTextureFromImage(wall_corner_img);
 
   char* tile_png = "../resources/tile.png";
-  // char* tile_png = "./resources/tile.png";
   Image tile_img = LoadImage(tile_png);
   ImageCrop(&tile_img, (Rectangle){0, 0, tile_size, tile_size});
   tile_texture = LoadTextureFromImage(tile_img);
 
   char* wall_background_png = "../resources/wall_background.png";
-  // char* wall_background_png = "./resources/wall_background.png";
   Image wall_background_img = LoadImage(wall_background_png);
   ImageCrop(&wall_background_img, (Rectangle){0, 0, tile_size, tile_size});
   wall_background_texture = LoadTextureFromImage(wall_background_img);
 
-  patterns[0] =
-      (Pattern){{(MapTile){tile_texture, 0, true}, (MapTile){wall_texture, 0, true},
-                 (MapTile){wall_texture, 0, true}, (MapTile){tile_texture, 0, true}},
-
-                {(MapTile){tile_texture, 0, true}, (MapTile){tile_texture, 0, true},
-                 (MapTile){tile_texture, 0, true}, (MapTile){tile_texture, 0, true}}};
+  patterns[0] = (Pattern){{(MapTile){tile_texture, 0, false}, (MapTile){wall_texture, 0, true},
+                           (MapTile){tile_texture, 0, false}},
+                          {(MapTile){tile_texture, 0, false}, (MapTile){tile_texture, 0, false},
+                           (MapTile){tile_texture, 0, false}}};
 
   Character Chars[num_chars] = {(Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2,
                                             5, 1, (Animation){0, 8, 0, 0}}};
@@ -395,8 +405,8 @@ int main(void) {
 
   Map map = {0};
   CreateRoom(&map, (Rec){0, 0, 10, 10});
-  CreateRoom(&map, (Rec){10, 0, 4, 3});
-  CreateRoom(&map, (Rec){10, 3, 4, 4});
+  CreateRoom(&map, (Rec){9, 3, 6, 4});
+  CreateRoom(&map, (Rec){14, 0, 10, 10});
   BreakWallsOnMap(&map);
 
   SetTargetFPS(60);
