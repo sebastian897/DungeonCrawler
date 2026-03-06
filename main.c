@@ -2,6 +2,7 @@
 #include <raylib.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "raymath.h"
 
@@ -61,9 +62,20 @@ typedef struct MapPos {
   int y;
 } MapPos;
 
+// {00000000 empty 00000001 floor 00000010 wall 00000011 corner}
+typedef struct TileType {
+  uint8_t type;
+} TileType;
+
+int tdx[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
+int tdy[9] = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
+typedef struct Condition {
+  TileType adj_tiles[9];
+} Condition;
+
 typedef struct Pattern {
-  MapTile old_pattern[3];
-  MapTile new_pattern[3];
+  Condition old_pattern;
+  Condition new_pattern;
 } Pattern;
 
 typedef struct ScreenPos {
@@ -268,10 +280,10 @@ void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
 }
 
 void CreateWall(Structure* wallobjs, Rec rec) {
-  RecSqrs(wallobjs, (Rec){rec.x + 1, rec.y, rec.width - 1, rec.height}, wall_texture, texture[0],
+  RecSqrs(wallobjs, (Rec){rec.x, rec.y, rec.width, rec.height}, wall_texture, texture[0],
           true);  // create the middle wall squares
-  wallobjs->arr[rec.y][rec.x] =
-      (MapTile){wall_corner_texture, rotation[0], true};  // create top left corner
+  // wallobjs->arr[rec.y][rec.x] =
+  //     (MapTile){wall_corner_texture, rotation[0], true};  // create top left corner
 }
 
 void CreateRoom(Map* map, Rec rec) {
@@ -381,10 +393,11 @@ int main(void) {
   ImageCrop(&wall_background_img, (Rectangle){0, 0, tile_size, tile_size});
   wall_background_texture = LoadTextureFromImage(wall_background_img);
 
-  patterns[0] = (Pattern){{(MapTile){tile_texture, 0, false}, (MapTile){wall_texture, 0, true},
-                           (MapTile){tile_texture, 0, false}},
-                          {(MapTile){tile_texture, 0, false}, (MapTile){tile_texture, 0, false},
-                           (MapTile){tile_texture, 0, false}}};
+  patterns[0] =
+      (Pattern){{{(TileType){1}, (TileType){2}, (TileType){1}, (TileType){1}, (TileType){1},
+                  (TileType){2}, (TileType){1}, (TileType){2}, (TileType){1}}},
+                {{(TileType){1}, (TileType){1}, (TileType){1}, (TileType){1}, (TileType){1},
+                  (TileType){1}, (TileType){1}, (TileType){1}, (TileType){1}}}};
 
   Character Chars[num_chars] = {(Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2,
                                             5, 1, (Animation){0, 8, 0, 0}}};
