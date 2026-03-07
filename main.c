@@ -47,14 +47,51 @@ typedef struct V2 {
   int y;
 } V2;
 
+typedef enum texture_type {
+  tex_empty,
+  tex_floor,
+  tex_wall,
+  tex_outer_corner,
+  tex_inner_corner,
+  tex_count,
+} texture_type;
+
+Texture2D textures[tex_count] = {0};
+
 typedef struct MapTile {
-  Texture2D texture;
+  texture_type texture;
   int rot;
   bool can_col;
 } MapTile;
 
+typedef enum tile_type {
+  tt_empty,
+  tt_floor,
+  tt_wall_top,
+  tt_wall_left,
+  tt_wall_right,
+  tt_wall_bottom,
+  tt_wall_outside_corner_topleft,
+  tt_wall_outside_corner_topright,
+  tt_wall_outside_corner_bottomleft,
+  tt_wall_outside_corner_bottomright,
+  tt_wall_inside_corner_topleft,
+  tt_wall_inside_corner_topright,
+  tt_wall_inside_corner_bottomleft,
+  tt_wall_inside_corner_bottomright,
+  tt_count,
+} tile_type;
+
+MapTile tiles[tt_count] = {
+    [tt_empty] = {0, 0, false},     [tt_floor] = {0, 0, false},
+    [tt_wall_top] = {0, 0, true},   [tt_wall_left] = {0, 3, true},
+    [tt_wall_right] = {0, 1, true}, [tt_wall_bottom] = {0, 2, true},
+};
+
+typedef uint8_t tile_idx;
+
 typedef struct Map {
-  MapTile arr[map_max_height][map_max_width];
+  tile_idx arr[map_max_height][map_max_width];
 } Map;
 
 typedef struct MapPos {
@@ -62,15 +99,12 @@ typedef struct MapPos {
   int y;
 } MapPos;
 
-// {00000000 empty 00000001 floor 00000010 wall 00000011 corner}
-typedef struct TileType {
-  uint8_t type;
-} TileType;
+// typedef struct TileType {
+//   uint8_t type;
+// } TileType;
 
-int tdx[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
-int tdy[9] = {-1, -1, -1, 0, 0, 0, 1, 1, 1};
 typedef struct Condition {
-  TileType adj_tiles[9];
+  uint8_t cond_halves[2];
 } Condition;
 
 typedef struct Pattern {
@@ -91,13 +125,13 @@ typedef struct Rec {
 } Rec;
 
 typedef struct Structure {
-  MapTile arr[map_max_height][map_max_width];
+  tile_idx arr[map_max_height][map_max_width];
   V2 pos;
 } Structure;
 
-MapTile DeepCopyMapTile(MapTile tile) {
-  return (MapTile){tile.texture, tile.rot, tile.can_col};
-}
+// MapTile DeepCopyMapTile(MapTile tile) {
+//   return (MapTile){tile.texture, tile.rot, tile.can_col};
+// }
 
 V2 V2Empty() {
   return (V2){0, 0};
@@ -142,8 +176,8 @@ ScreenPos V2ToScreenPos(V2 v) {
 void AddContentsToStruct(Structure* dest, Structure* source) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
-      if (source->arr[ty][tx].texture.id == 0) continue;
-      dest->arr[ty][tx] = DeepCopyMapTile(source->arr[ty][tx]);
+      if (source->arr[ty][tx] == tt_empty) continue;
+      dest->arr[ty][tx] = source->arr[ty][tx];
     }
   }
 }
@@ -151,9 +185,9 @@ void AddContentsToStruct(Structure* dest, Structure* source) {
 void ShiftStructure(Structure* dest, Structure* source, V2 v) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
-      if (source->arr[ty][tx].texture.id == 0) continue;
+      if (source->arr[ty][tx] == tt_empty) continue;
       V2 newpos = AddV2((V2){tx, ty}, v);
-      dest->arr[newpos.y][newpos.x] = DeepCopyMapTile(source->arr[ty][tx]);
+      dest->arr[newpos.y][newpos.x] = source->arr[ty][tx];
     }
   }
 }
@@ -183,7 +217,7 @@ void MovePlayer(Player* p, Camera2D* c, Map* map) {
     V2 col_tile = {-1, -1};
     for (int my = 0; my < map_max_height; my++) {
       for (int mx = 0; mx < map_max_width; mx++) {
-        if (!map->arr[my][mx].can_col) continue;
+        if (!tiles[map->arr[my][mx]].can_col) continue;
         V2 tile = {mx, my};
         bool xcol = Collided((ScreenPos){newx, p->pos.y}, V2ToScreenPos(tile));
         bool ycol = Collided((ScreenPos){p->pos.x, newy}, V2ToScreenPos(tile));
@@ -229,10 +263,10 @@ void MovePlayer(Player* p, Camera2D* c, Map* map) {
   }
   p->character.anim.anim_frame_counter++;
 }
-void RecSqrs(Structure* structure, Rec rec, Texture2D texture, float rot, bool can_col) {
+void RecTiles(Structure* structure, Rec rec, tile_type tile) {
   for (int y = 0; y < rec.height; y++) {
     for (int x = 0; x < rec.width; x++) {
-      structure->arr[rec.y + y][rec.x + x] = (MapTile){texture, rot, can_col};
+      structure->arr[rec.y + y][rec.x + x] = tile;
     }
   }
 }
@@ -243,12 +277,12 @@ int ry[4] = {0, 0, 1, 1};
 int wrx[4] = {1, 0, 1, 0};
 int wry[4] = {0, 1, 0, 1};
 
-void AddStructureToEnvObjs(Map* map, Structure* tiles) {
+void AddStructureToEnvObjs(Map* map, Structure* structure) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
-      if (tiles->arr[ty][tx].texture.id == 0) continue;
-      V2 newpos = AddV2(tiles->pos, (V2){tx, ty});
-      map->arr[newpos.y][newpos.x] = DeepCopyMapTile(tiles->arr[ty][tx]);
+      if (structure->arr[ty][tx] == tt_empty) continue;
+      V2 newpos = AddV2(structure->pos, (V2){tx, ty});
+      map->arr[newpos.y][newpos.x] = structure->arr[ty][tx];
     }
   }
 }
@@ -264,7 +298,7 @@ void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
   for (int ty = envobjs.y; ty < envobjs.height + envobjs.y; ty++) {
     for (int tx = envobjs.x; tx < envobjs.width + envobjs.x;
          tx++) {  // only loop through the exact coods of the envobjs
-      if (source->arr[ty][tx].texture.id == 0) continue;
+      if (source->arr[ty][tx] == tt_empty) continue;
       V2 old_pos = (V2){tx, ty};
       V2 new_pos =
           AddV2(Vector2ToV2(Vector2Rotate(V2ToVector2(SubV2(old_pos, GetPosOfRec(envobjs))),
@@ -273,15 +307,15 @@ void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
       V2 rot_factor = SubV2(
           new_pos, (V2){(rx[rot] * 1), (ry[rot] * 1)});  // shift the top left corner of each tile
       V2 new_pos2 = AddV2(rot_factor, shift);
-      dest->arr[new_pos2.y][new_pos2.x] = DeepCopyMapTile(source->arr[ty][tx]);
-      dest->arr[new_pos2.y][new_pos2.x].rot = (source->arr[ty][tx].rot + rot) % 4;
+      dest->arr[new_pos2.y][new_pos2.x] = source->arr[ty][tx];
+      // dest->arr[new_pos2.y][new_pos2.x].rot = (source->arr[ty][tx].rot + rot) % 4;
     }
   }
 }
 
 void CreateWall(Structure* wallobjs, Rec rec) {
-  RecSqrs(wallobjs, (Rec){rec.x, rec.y, rec.width, rec.height}, wall_texture, texture[0],
-          true);  // create the middle wall squares
+  RecTiles(wallobjs, (Rec){rec.x, rec.y, rec.width, rec.height},
+           tt_wall_top);  // create the middle wall squares
   // wallobjs->arr[rec.y][rec.x] =
   //     (MapTile){wall_corner_texture, rotation[0], true};  // create top left corner
 }
@@ -304,68 +338,104 @@ void CreateRoom(Map* map, Rec rec) {
     AddContentsToStruct(&room, &shift_new_wall_objs);
   }
   Structure new_floor_objs = {0};
-  RecSqrs(&new_floor_objs, (Rec){+1, +1, (rec.width - 2), (rec.height - 2)}, tile_texture, 0,
-          false);
+  RecTiles(&new_floor_objs, (Rec){1, 1, (rec.width - 2), (rec.height - 2)}, tt_floor);
   AddContentsToStruct(&room, &new_floor_objs);
   AddStructureToEnvObjs(map, &room);
 }
 
-int dx[4] = {0, 1, 0, -1};
-int dy[4] = {-1, 0, 1, 0};
-V2 GetAdjacentToCorner(Map* map, V2 pos) {
-  V2 Adj_tile = {0, 0};
-  for (int d = 0; d < 4; d++) {
-    Adj_tile = (V2){dx[d], dy[d]};
-    if (map->arr[pos.y + Adj_tile.y][pos.x + Adj_tile.x].texture.id == wall_corner_texture.id) {
-      return Adj_tile;
-    }
-  }
-  return Adj_tile;
-}
+// int dx[4] = {0, 1, 0, -1};
+// int dy[4] = {-1, 0, 1, 0};
+// V2 GetAdjacentToCorner(Map* map, V2 pos) {
+//   V2 Adj_tile = {0, 0};
+//   for (int d = 0; d < 4; d++) {
+//     Adj_tile = (V2){dx[d], dy[d]};
+//     if (map->arr[pos.y + Adj_tile.y][pos.x + Adj_tile.x].texture.id == wall_corner_texture.id) {
+//       return Adj_tile;
+//     }
+//   }
+//   return Adj_tile;
+// }
 
 bool IsInBounds(V2 pos) {
   return pos.x >= 0 && pos.y >= 0 && pos.x < map_max_width && pos.y < map_max_height;
 }
 
-Pattern patterns[1] = {0};
-void ReplaceTileFromPattern(Map* map, Pattern p) {
-  for (int my = 0; my < map_max_height; my++) {
-    for (int mx = 0; mx < map_max_width; mx++) {
-      for (int d = 0; d < 4; d++) {
-        bool ispattern = true;
-        for (int t = 0; t < ARRAY_LENGTH(p.old_pattern); t++) {
-          V2 newpos = {mx + t * dx[d], my + t * dy[d]};
-          if (!IsInBounds(newpos)) {
-            ispattern = false;
-            break;
-          }
-          if (map->arr[newpos.y][newpos.x].texture.id != p.old_pattern[t].texture.id) {
-            ispattern = false;
-          }
-        }
-        if (ispattern) {
-          for (int t = 0; t < 4; t++) {
-            map->arr[my + t * dy[d]][mx + t * dx[d]] = DeepCopyMapTile(p.new_pattern[t]);
-          }
-        }
-      }
+// {any 00000000 empty 00000001 floor 00000010 wall 00000011}
+int text_ids[4] = {0};
+uint8_t GetIdFromTextureId(int id) {
+  for (uint8_t i = 0; i < 4; i++) {
+    if (text_ids[0] == id) {
+      return text_ids[0];
     }
   }
+  return -2;
 }
 
-void BreakWallsOnMap(Map* map) {
-  for (int p = 0; p < ARRAY_LENGTH(patterns); p++) ReplaceTileFromPattern(map, patterns[p]);
-  // for (int my = 0; my < map_max_height; my++) {
-  //   for (int mx = 0; mx < map_max_width; mx++) {
-  //     V2 tile_pos = {mx, my};
-  //     MapTile maptile = map->arr[my][mx];
-  //     V2 Adj_Corner_Tile = GetAdjacentToCorner(map, tile_pos);
-  //     if (maptile.texture.id == wall_corner_texture.id && V2Equal(Adj_Corner_Tile, V2Empty()))
-  //     {
-  //     }
-  //   }
-  // }
+uint8_t GetHalfNibFromByteAtI(uint8_t byte, int i) {
+  uint8_t pos = (0b11000000 >> i * 2);
+  uint8_t selected_data = (byte & pos);
+  return selected_data >> (3 - i) * 2;
 }
+
+uint8_t SetHalfNibInByteAtI(uint8_t byte, uint8_t newbyte, int i) {
+  uint8_t data_at_i_pos = (newbyte << (3 - i) * 2);
+  return (byte | data_at_i_pos);
+}
+
+bool DoesConditionMatch(Condition c1, Condition c2) {
+  for (int h = 0; h < 2; h++) {
+    if (c1.cond_halves[h] != c2.cond_halves[h]) return false;
+  }
+  return true;
+}
+
+// int tdx[2][4] = {{-1, 0, 1, -1}, {1, -1, 0, 1}};
+// int tdy[2][4] = {{-1, -1, -1, 0}, {0, 1, 1, 1}};
+// Pattern patterns[1] = {0};
+// void ReplaceTileFromPattern(Map* map, Pattern p) {
+//   for (int my = 0; my < map_max_height; my++) {
+//     for (int mx = 0; mx < map_max_width; mx++) {
+//       if (GetIdFromTextureId(map->arr[my][mx].texture.id) > 1) {
+//         Condition curr_cond = {0};
+//         for (int d1 = 0; d1 < 2; d1++) {
+//           for (int d2 = 0; d2 < 4; d2++) {
+//             V2 newpos = {mx + tdx[d1][d2], my + tdy[d1][d2]};
+//             if (!IsInBounds(newpos)) {
+//               curr_cond.cond_halves[d1] =
+//                   SetHalfNibInByteAtI(curr_cond.cond_halves[d1], 0b00000001, d2);
+//             } else {
+//               curr_cond.cond_halves[d1] = SetHalfNibInByteAtI(
+//                   curr_cond.cond_halves[d1],
+//                   GetIdFromTextureId(map->arr[newpos.y][newpos.x].texture.id), d2);
+//             }
+//           }
+//         }
+//         if (DoesConditionMatch(p.old_pattern, curr_cond)) {
+//           for (int d1 = 0; d1 < 2; d1++) {
+//             for (int d2 = 0; d2 < 4; d2++) {
+//               text_ids[GetHalfNibFromByteAtI(p.new_pattern.cond_halves[d1], d2)] map
+//                   ->arr[my + t * dy[d2]][mx + t * dx[d2]] = DeepCopyMapTile(p.new_pattern[t]);
+//             }
+//           }
+//         }
+//       }
+//     }
+//   }
+// }
+
+// void BreakWallsOnMap(Map* map) {
+//   for (int p = 0; p < ARRAY_LENGTH(patterns); p++) ReplaceTileFromPattern(map, patterns[p]);
+// for (int my = 0; my < map_max_height; my++) {
+//   for (int mx = 0; mx < map_max_width; mx++) {
+//     V2 tile_pos = {mx, my};
+//     MapTile maptile = map->arr[my][mx];
+//     V2 Adj_Corner_Tile = GetAdjacentToCorner(map, tile_pos);
+//     if (maptile.texture.id == wall_corner_texture.id && V2Equal(Adj_Corner_Tile, V2Empty()))
+//     {
+//     }
+//   }
+// }
+// }
 
 int main(void) {
   InitWindow(0, 0, "Game");
@@ -388,16 +458,18 @@ int main(void) {
   ImageCrop(&tile_img, (Rectangle){0, 0, tile_size, tile_size});
   tile_texture = LoadTextureFromImage(tile_img);
 
-  char* wall_background_png = "../resources/wall_background.png";
-  Image wall_background_img = LoadImage(wall_background_png);
-  ImageCrop(&wall_background_img, (Rectangle){0, 0, tile_size, tile_size});
-  wall_background_texture = LoadTextureFromImage(wall_background_img);
+  textures[tex_wall] = LoadTexture("../resources/wall.png");
+  textures[tex_floor] = LoadTexture("../resources/tile.png");
 
-  patterns[0] =
-      (Pattern){{{(TileType){1}, (TileType){2}, (TileType){1}, (TileType){1}, (TileType){1},
-                  (TileType){2}, (TileType){1}, (TileType){2}, (TileType){1}}},
-                {{(TileType){1}, (TileType){1}, (TileType){1}, (TileType){1}, (TileType){1},
-                  (TileType){1}, (TileType){1}, (TileType){1}, (TileType){1}}}};
+  tiles[tt_floor].texture = tex_floor;
+  tiles[tt_wall_top].texture = tiles[tt_wall_left].texture = tiles[tt_wall_right].texture =
+      tiles[tt_wall_bottom].texture = tex_wall;
+
+  // text_ids[0] = -1;
+  // text_ids[1] = 0;
+  // text_ids[2] = tile_texture.id;
+  // text_ids[3] = wall_texture.id;
+  // patterns[0] = (Pattern){{0b00000010, 0b10000000}, {0b00000010, 0b10000000}};
 
   Character Chars[num_chars] = {(Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2,
                                             5, 1, (Animation){0, 8, 0, 0}}};
@@ -420,7 +492,7 @@ int main(void) {
   CreateRoom(&map, (Rec){0, 0, 10, 10});
   CreateRoom(&map, (Rec){9, 3, 6, 4});
   CreateRoom(&map, (Rec){14, 0, 10, 10});
-  BreakWallsOnMap(&map);
+  // BreakWallsOnMap(&map);
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
@@ -433,12 +505,13 @@ int main(void) {
 
     for (int my = 0; my < map_max_height; my++) {
       for (int mx = 0; mx < map_max_width; mx++) {
-        DrawTexturePro(
-            map.arr[my][mx].texture,
-            (Rectangle){0, 0, map.arr[my][mx].texture.width, map.arr[my][mx].texture.height},
-            (Rectangle){(mx + 1 / 2.0) * tile_size, (my + 1 / 2.0) * tile_size, tile_size,
-                        tile_size},
-            (Vector2){tile_size / 2.0, tile_size / 2.0}, map.arr[my][mx].rot * 90, WHITE);
+        DrawTexturePro(textures[tiles[map.arr[my][mx]].texture],
+                       (Rectangle){0, 0, textures[tiles[map.arr[my][mx]].texture].width,
+                                   textures[tiles[map.arr[my][mx]].texture].height},
+                       (Rectangle){(mx + 1 / 2.0) * tile_size, (my + 1 / 2.0) * tile_size,
+                                   tile_size, tile_size},
+                       (Vector2){tile_size / 2.0, tile_size / 2.0}, tiles[map.arr[my][mx]].rot * 90,
+                       WHITE);
       }
     }
     DrawTexturePro(player.character.sprite_sheet,
