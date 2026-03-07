@@ -41,8 +41,8 @@ target_include_directories(raygui INTERFACE ${raygui_SOURCE_DIR}/src)
 include(resources.cmake)
 
 add_executable(dungeoncrawler
-  main.c
-  raygui_impl.c
+  src/main.c
+  src/raygui_impl.c
   ${GEN_C_FILES}
 )
 

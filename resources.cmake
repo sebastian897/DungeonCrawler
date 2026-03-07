@@ -58,7 +58,7 @@ generate_resources("${PNG_FILES}" "${GEN_DIR}"
   RESOURCE_ENTRIES
 )
 
-configure_file(resources.h.in ${GEN_DIR}/resources.h @ONLY) # uses RESOURCE_ENUMS
-configure_file(resources.c.in ${GEN_DIR}/resources.c @ONLY) # uses EXTERN_DECLARATIONS, RESOURCE_ENTRIES
+configure_file(src/resources.h.in ${GEN_DIR}/resources.h @ONLY) # uses RESOURCE_ENUMS
+configure_file(src/resources.c.in ${GEN_DIR}/resources.c @ONLY) # uses EXTERN_DECLARATIONS, RESOURCE_ENTRIES
 
 list(APPEND GEN_C_FILES ${GEN_DIR}/resources.c)
