@@ -1,0 +1,229 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3b5c2bd..463741c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,13 +5,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+ set(CMAKE_C_STANDARD_REQUIRED ON)
+ 
+ function(setup_target_warnings_and_sanitizers target)
+-    target_compile_options(${target} PRIVATE
+-        $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wshadow -fdiagnostics-color=always>
+-        $<$<C_COMPILER_ID:MSVC>:/W4>
+-    )
+-    set(SANITIZER_EXPR $<$<AND:$<C_COMPILER_ID:GNU,Clang>,$<NOT:$<PLATFORM_ID:Windows>>,$<CONFIG:Debug>>:-fsanitize=address,undefined,leak>)
+-    target_compile_options(${target} PRIVATE ${SANITIZER_EXPR})
+-    target_link_options(${target} PRIVATE ${SANITIZER_EXPR})
++  target_compile_options(${target} PRIVATE
++    $<$<C_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wshadow -fdiagnostics-color=always>
++    $<$<C_COMPILER_ID:MSVC>:/W4>
++  )
++  set(SANITIZER_EXPR $<$<AND:$<C_COMPILER_ID:GNU,Clang>,$<NOT:$<PLATFORM_ID:Windows>>,$<CONFIG:Debug>>:-fsanitize=address,undefined,leak>)
++  target_compile_options(${target} PRIVATE ${SANITIZER_EXPR})
++  target_link_options(${target} PRIVATE ${SANITIZER_EXPR})
+ endfunction()
+ 
+ # fetch an compile raylib
+@@ -36,21 +36,24 @@ FetchContent_MakeAvailable(raygui)
+ add_library(raygui INTERFACE)
+ target_include_directories(raygui INTERFACE ${raygui_SOURCE_DIR}/src)
+ 
+-message(${raygui_SOURCE_DIR}/src)
++# find resources for embedding, gen c src with xxd, and configure API .in templates.
++# provides: GEN_DIR, GEN_C_FILES
++include(resources.cmake)
+ 
+-# compile the client
+ add_executable(dungeoncrawler
+-    main.c
+-    raygui_impl.c
++  main.c
++  raygui_impl.c
++  ${GEN_C_FILES}
+ )
+ 
++target_include_directories(dungeoncrawler PRIVATE ${GEN_DIR})
+ target_link_libraries(dungeoncrawler PRIVATE raylib raygui)
+ setup_target_warnings_and_sanitizers(dungeoncrawler)
+ 
+ # copy compile_commands.json from the build dir to the source dir
+ add_custom_target(copy_compile_commands ALL
+-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+-        "${CMAKE_BINARY_DIR}/compile_commands.json"
+-        "${CMAKE_SOURCE_DIR}/compile_commands.json"
+-    COMMENT "Copying compile_commands.json to source root"
++  COMMAND ${CMAKE_COMMAND} -E copy_if_different
++  "${CMAKE_BINARY_DIR}/compile_commands.json"
++  "${CMAKE_SOURCE_DIR}/compile_commands.json"
++  COMMENT "Copying compile_commands.json to source root"
+ )
+diff --git a/main.c b/main.c
+index 871c764..a077ae3 100644
+--- a/main.c
++++ b/main.c
+@@ -5,6 +5,7 @@
+ #include <stdint.h>
+ 
+ #include "raymath.h"
++#include "resources.h"
+ 
+ #define ARRAY_LENGTH(x) ((int)(sizeof(x) / sizeof((x)[0])))
+ #define ROUND3DP(x) (round((x) * 1000.0) / 1000.0)
+@@ -443,10 +444,10 @@ int main(void) {
+   const int screenWidth = GetMonitorWidth(GetCurrentMonitor());
+   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
+ 
+-  char* wall_png = "../resources/wall.png";
+-  Image wall_img = LoadImage(wall_png);
+-  ImageCrop(&wall_img, (Rectangle){0, 0, tile_size, tile_size});
+-  wall_texture = LoadTextureFromImage(wall_img);
++  wall_texture = ResourceTexture(RES_WALL);
++  wall_corner_texture = ResourceTexture(RES_WALL_CORNER);
++  tile_texture = ResourceTexture(RES_TILE);
++  wall_background_texture = ResourceTexture(RES_WALL_BACKGROUND);
+ 
+   char* wall_corner_png = "../resources/wall_corner.png";
+   Image wall_corner_img = LoadImage(wall_corner_png);
+@@ -461,6 +462,9 @@ int main(void) {
+   textures[tex_wall] = LoadTexture("../resources/wall.png");
+   textures[tex_floor] = LoadTexture("../resources/tile.png");
+ 
++  Character Chars[num_chars] = {
++      (Character){"Wizard", ResourceTexture(RES_WIZARD), 0, 2, 5, 1, (Animation){0, 8, 0, 0}}};
++
+   tiles[tt_floor].texture = tex_floor;
+   tiles[tt_wall_top].texture = tiles[tt_wall_left].texture = tiles[tt_wall_right].texture =
+       tiles[tt_wall_bottom].texture = tex_wall;
+@@ -471,8 +475,6 @@ int main(void) {
+   // text_ids[3] = wall_texture.id;
+   // patterns[0] = (Pattern){{0b00000010, 0b10000000}, {0b00000010, 0b10000000}};
+ 
+-  Character Chars[num_chars] = {(Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2,
+-                                            5, 1, (Animation){0, 8, 0, 0}}};
+ 
+   Player player = {0};
+   player.pos.x = 150;
+@@ -527,4 +529,4 @@ int main(void) {
+   for (int t = 0; t < 4; t++) UnloadTexture(wall_texture);
+   CloseWindow();
+   return 0;
+-}
+\ No newline at end of file
++}
+diff --git a/resources.c.in b/resources.c.in
+new file mode 100644
+index 0000000..af40ebc
+--- /dev/null
++++ b/resources.c.in
+@@ -0,0 +1,24 @@
++#include "resources.h"
++
++typedef struct {
++  const unsigned char* data;
++  unsigned int size;
++} Resource;
++
++@EXTERN_DECLARATIONS@
++
++static const Resource resources[RES_COUNT] = {
++@RESOURCE_ENTRIES@
++};    
++
++Image ResourceImage(ResourceID id) {
++  Resource r = resources[id];
++  return LoadImageFromMemory(".png", r.data, r.size);
++}
++
++Texture2D ResourceTexture(ResourceID id) {
++  Image img = ResourceImage(id);
++  Texture2D tex = LoadTextureFromImage(img);
++  UnloadImage(img);
++  return tex;
++}
+diff --git a/resources.cmake b/resources.cmake
+new file mode 100644
+index 0000000..f1fe430
+--- /dev/null
++++ b/resources.cmake
+@@ -0,0 +1,66 @@
++# finds .png resources in ./resources
++# generates c src code with the byte conetnt using xxd
++# configures resources.c and resources.h from their .in templates
++# provides GEN_C_FILES for inclusion in project
++
++function(generate_resources PNG_LIST GEN_DIR OUT_C_FILES
++    OUT_RESOURCE_ENUMS OUT_EXTERN_DECLS OUT_RESOURCE_ENTRIES)
++
++  find_program(XXD_EXE xxd REQUIRED)
++  find_program(SED_EXE sed REQUIRED)
++  file(MAKE_DIRECTORY ${GEN_DIR})
++
++  set(resource_enum_list "")
++  set(extern_list "")
++  set(resource_entry_list "")
++  set(gen_c_files_list "")
++
++  foreach(FILE ${PNG_LIST})
++    get_filename_component(NAME ${FILE} NAME_WE)
++    string(TOUPPER ${NAME} ID)
++    string(REPLACE "." "_" VAR ${NAME})
++    string(PREPEND VAR "resource_")
++    file(SIZE ${FILE} SIZE)
++
++    set(OUT_C ${GEN_DIR}/${VAR}.c)
++    add_custom_command(
++      OUTPUT ${OUT_C}
++      COMMAND ${XXD_EXE} -i -n ${VAR} ${FILE} |
++        # make array const and remove size (covered below)
++        ${SED_EXE} -e 's/^unsigned char/const unsigned char/ \; /^unsigned int/d' > ${OUT_C}
++      DEPENDS ${FILE}
++    )
++    list(APPEND gen_c_files_list ${OUT_C})
++
++    # Accumulate lists for template substitution
++    list(APPEND resource_enum_list "  RES_${ID},")
++    list(APPEND extern_list "extern const unsigned char ${VAR}[]\;")
++    list(APPEND resource_entry_list "  [RES_${ID}] = {${VAR}, ${SIZE}},")
++  endforeach()
++
++  string(JOIN "\n" RESOURCE_ENUMS ${resource_enum_list})
++  string(JOIN "\n" EXTERN_DECLARATIONS ${extern_list})
++  string(JOIN "\n" RESOURCE_ENTRIES ${resource_entry_list})
++
++  message(${EXTERN_DECLARATIONS})
++
++  set(${OUT_C_FILES} "${gen_c_files_list}" PARENT_SCOPE)
++  set(${OUT_RESOURCE_ENUMS} "${RESOURCE_ENUMS}" PARENT_SCOPE)
++  set(${OUT_EXTERN_DECLS} "${EXTERN_DECLARATIONS}" PARENT_SCOPE)
++  set(${OUT_RESOURCE_ENTRIES} "${RESOURCE_ENTRIES}" PARENT_SCOPE)
++endfunction()
++
++file(GLOB PNG_FILES resources/*.png)
++set(GEN_DIR ${CMAKE_BINARY_DIR}/generated)
++
++generate_resources("${PNG_FILES}" "${GEN_DIR}"
++  GEN_C_FILES
++  RESOURCE_ENUMS
++  EXTERN_DECLARATIONS
++  RESOURCE_ENTRIES
++)
++
++configure_file(resources.h.in ${GEN_DIR}/resources.h @ONLY) # uses RESOURCE_ENUMS
++configure_file(resources.c.in ${GEN_DIR}/resources.c @ONLY) # uses EXTERN_DECLARATIONS, RESOURCE_ENTRIES
++
++list(APPEND GEN_C_FILES ${GEN_DIR}/resources.c)
+diff --git a/resources.h.in b/resources.h.in
+new file mode 100644
+index 0000000..4b37093
+--- /dev/null
++++ b/resources.h.in
+@@ -0,0 +1,10 @@
++#pragma once
++#include "raylib.h"
++
++typedef enum {
++@RESOURCE_ENUMS@
++  RES_COUNT
++} ResourceID;
++
++Image ResourceImage(ResourceID id);
++Texture2D ResourceTexture(ResourceID id);

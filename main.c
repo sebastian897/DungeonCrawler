@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "raymath.h"
+#include "resources.h"
 
 #define ARRAY_LENGTH(x) ((int)(sizeof(x) / sizeof((x)[0])))
 #define ROUND3DP(x) (round((x) * 1000.0) / 1000.0)
@@ -443,23 +444,11 @@ int main(void) {
   const int screenWidth = GetMonitorWidth(GetCurrentMonitor());
   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
 
-  char* wall_png = "../resources/wall.png";
-  Image wall_img = LoadImage(wall_png);
-  ImageCrop(&wall_img, (Rectangle){0, 0, tile_size, tile_size});
-  wall_texture = LoadTextureFromImage(wall_img);
+  textures[tex_wall] = ResourceTexture(RES_WALL);
+  textures[tex_floor] = ResourceTexture(RES_TILE);
 
-  char* wall_corner_png = "../resources/wall_corner.png";
-  Image wall_corner_img = LoadImage(wall_corner_png);
-  ImageCrop(&wall_corner_img, (Rectangle){0, 0, tile_size, tile_size});
-  wall_corner_texture = LoadTextureFromImage(wall_corner_img);
-
-  char* tile_png = "../resources/tile.png";
-  Image tile_img = LoadImage(tile_png);
-  ImageCrop(&tile_img, (Rectangle){0, 0, tile_size, tile_size});
-  tile_texture = LoadTextureFromImage(tile_img);
-
-  textures[tex_wall] = LoadTexture("../resources/wall.png");
-  textures[tex_floor] = LoadTexture("../resources/tile.png");
+  Character Chars[num_chars] = {
+      (Character){"Wizard", ResourceTexture(RES_WIZARD), 0, 2, 5, 1, (Animation){0, 8, 0, 0}}};
 
   tiles[tt_floor].texture = tex_floor;
   tiles[tt_wall_top].texture = tiles[tt_wall_left].texture = tiles[tt_wall_right].texture =
@@ -471,8 +460,6 @@ int main(void) {
   // text_ids[3] = wall_texture.id;
   // patterns[0] = (Pattern){{0b00000010, 0b10000000}, {0b00000010, 0b10000000}};
 
-  Character Chars[num_chars] = {(Character){"Wizard", LoadTexture("../resources/wizard.png"), 0, 2,
-                                            5, 1, (Animation){0, 8, 0, 0}}};
 
   Player player = {0};
   player.pos.x = 150;

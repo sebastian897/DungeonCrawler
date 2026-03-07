@@ -1,0 +1,10 @@
+#pragma once
+#include "raylib.h"
+
+typedef enum {
+@RESOURCE_ENUMS@
+  RES_COUNT
+} ResourceID;
+
+Image ResourceImage(ResourceID id);
+Texture2D ResourceTexture(ResourceID id);

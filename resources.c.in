@@ -1,0 +1,24 @@
+#include "resources.h"
+
+typedef struct {
+  const unsigned char* data;
+  unsigned int size;
+} Resource;
+
+@EXTERN_DECLARATIONS@
+
+static const Resource resources[RES_COUNT] = {
+@RESOURCE_ENTRIES@
+};    
+
+Image ResourceImage(ResourceID id) {
+  Resource r = resources[id];
+  return LoadImageFromMemory(".png", r.data, r.size);
+}
+
+Texture2D ResourceTexture(ResourceID id) {
+  Image img = ResourceImage(id);
+  Texture2D tex = LoadTextureFromImage(img);
+  UnloadImage(img);
+  return tex;
+}
