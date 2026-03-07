@@ -445,7 +445,7 @@ int main(void) {
   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
 
   textures[tex_wall] = ResourceTexture(RES_WALL);
-  textures[tex_floor] = ResourceTexture(RES_TILE);
+  textures[tex_floor] = ResourceTexture(RES_FLOOR);
 
   Character Chars[num_chars] = {
       (Character){"Wizard", ResourceTexture(RES_WIZARD), 0, 2, 5, 1, (Animation){0, 8, 0, 0}}};
