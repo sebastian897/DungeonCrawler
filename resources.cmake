@@ -25,9 +25,8 @@ function(generate_resources PNG_LIST GEN_DIR OUT_C_FILES
     set(OUT_C ${GEN_DIR}/${VAR}.c)
     add_custom_command(
       OUTPUT ${OUT_C}
-      COMMAND ${XXD_EXE} -i -n ${VAR} ${FILE} > ${OUT_C}
-        # make array const and remove size (covered below)
-        # ${SED_EXE} -e 's/^unsigned char/const unsigned char/ \; /^unsigned int/d' > ${OUT_C}
+      COMMAND ${XXD_EXE} -i -n ${VAR} ${FILE} ${OUT_C}
+      COMMAND ${SED_EXE} -i -e "s/^unsigned char/const unsigned char/" -e "/^unsigned int/d" ${OUT_C}
       DEPENDS ${FILE} # only if new
     )
     list(APPEND gen_c_files_list ${OUT_C})

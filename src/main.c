@@ -68,25 +68,43 @@ typedef struct MapTile {
 typedef enum tile_type {
   tt_empty,
   tt_floor,
-  tt_wall_top,
-  tt_wall_left,
-  tt_wall_right,
   tt_wall_bottom,
+  tt_wall_left,
+  tt_wall_top,
+  tt_wall_right,
   tt_wall_outside_corner_topleft,
   tt_wall_outside_corner_topright,
-  tt_wall_outside_corner_bottomleft,
   tt_wall_outside_corner_bottomright,
+  tt_wall_outside_corner_bottomleft,
   tt_wall_inside_corner_topleft,
   tt_wall_inside_corner_topright,
-  tt_wall_inside_corner_bottomleft,
   tt_wall_inside_corner_bottomright,
+  tt_wall_inside_corner_bottomleft,
   tt_count,
 } tile_type;
 
 MapTile tiles[tt_count] = {
-    [tt_empty] = {0, 0, false},     [tt_floor] = {0, 0, false},
-    [tt_wall_top] = {0, 0, true},   [tt_wall_left] = {0, 3, true},
-    [tt_wall_right] = {0, 1, true}, [tt_wall_bottom] = {0, 2, true},
+    [tt_empty] = {0, 0, true},    [tt_floor] = {0, 0, false},   [tt_wall_bottom] = {0, 0, true},
+    [tt_wall_left] = {0, 1, true}, [tt_wall_top] = {0, 2, true}, [tt_wall_right] = {0, 3, true},
+};
+
+static const uint8_t patterns_breakwall[] = {0, 0};
+static const uint8_t masks_breakwall[] = {231, 189};
+
+static const tile_type tile_groups[] = {tt_wall_bottom};
+static const tile_type tile_type_to_tile_group[] = {
+    [tt_wall_bottom] = tt_wall_bottom,
+    [tt_wall_left] = tt_wall_bottom,
+    [tt_wall_top] = tt_wall_bottom,
+    [tt_wall_right] = tt_wall_bottom,
+    [tt_wall_outside_corner_topleft] = tt_wall_outside_corner_topleft,
+    [tt_wall_outside_corner_topright] = tt_wall_outside_corner_topleft,
+    [tt_wall_outside_corner_bottomright] = tt_wall_outside_corner_topleft,
+    [tt_wall_outside_corner_bottomleft] = tt_wall_outside_corner_topleft,
+    [tt_wall_inside_corner_topleft] = tt_wall_inside_corner_topleft,
+    [tt_wall_inside_corner_topright] = tt_wall_inside_corner_topleft,
+    [tt_wall_inside_corner_bottomright] = tt_wall_inside_corner_topleft,
+    [tt_wall_inside_corner_bottomleft] = tt_wall_inside_corner_topleft,
 };
 
 typedef uint8_t tile_idx;
@@ -107,11 +125,6 @@ typedef struct MapPos {
 typedef struct Condition {
   uint8_t cond_halves[2];
 } Condition;
-
-typedef struct Pattern {
-  Condition old_pattern;
-  Condition new_pattern;
-} Pattern;
 
 typedef struct ScreenPos {
   float x;
@@ -309,7 +322,13 @@ void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
           new_pos, (V2){(rx[rot] * 1), (ry[rot] * 1)});  // shift the top left corner of each tile
       V2 new_pos2 = AddV2(rot_factor, shift);
       dest->arr[new_pos2.y][new_pos2.x] = source->arr[ty][tx];
-      // dest->arr[new_pos2.y][new_pos2.x].rot = (source->arr[ty][tx].rot + rot) % 4;
+      for (int tg = 0; tg < ARRAY_LENGTH(tile_groups); tg++) {
+        int group_pos = source->arr[ty][tx] - tile_groups[tg];
+        if (group_pos < 4 && group_pos >= 0) {
+          dest->arr[new_pos2.y][new_pos2.x] = tile_groups[tg] + (rot + group_pos) % 4;
+          break;
+        }
+      }
     }
   }
 }
@@ -372,16 +391,15 @@ uint8_t GetIdFromTextureId(int id) {
   return -2;
 }
 
-uint8_t GetHalfNibFromByteAtI(uint8_t byte, int i) {
-  uint8_t pos = (0b11000000 >> i * 2);
-  uint8_t selected_data = (byte & pos);
-  return selected_data >> (3 - i) * 2;
-}
+// uint8_t GetHalfNibFromByteAtI(uint8_t byte, int i) {
+//   uint8_t pos = (0b11000000 >> i * 2);
+//   uint8_t selected_data = (byte & pos);
+//   return selected_data >> (3 - i) * 2;
+// }
 
-uint8_t SetHalfNibInByteAtI(uint8_t byte, uint8_t newbyte, int i) {
-  uint8_t data_at_i_pos = (newbyte << (3 - i) * 2);
-  return (byte | data_at_i_pos);
-}
+// uint8_t AssembleByte(uint8_t new_bit, uint8_t byte, int i) {
+
+// }
 
 bool DoesConditionMatch(Condition c1, Condition c2) {
   for (int h = 0; h < 2; h++) {
@@ -390,38 +408,68 @@ bool DoesConditionMatch(Condition c1, Condition c2) {
   return true;
 }
 
+uint8_t GetGroupFromTileType(uint8_t tile) {
+  return tile_type_to_tile_group[tile];
+}
+
+uint8_t GetSignature(Map* map, V2 pos) {
+  uint8_t signature = 0;
+  for (int dy = 1; dy >= -1; dy--) {
+    for (int dx = 1; dx >= -1; dx--) {
+      if (!dy && !dx) continue;
+      V2 dir = {dx, dy};
+      V2 new_pos = AddV2(pos, dir);
+      uint8_t new_bit = !IsInBounds(new_pos) || tiles[map->arr[new_pos.y][new_pos.x]].can_col;
+      signature <<= 1;
+      signature |= new_bit;
+    }
+  }
+  return signature;
+}
+
+void BreakWalls(Map* map) {
+  for (int my = 0; my < map_max_height; my++) {
+    for (int mx = 0; mx < map_max_width; mx++) {
+      V2 t_pos = {mx, my};
+      uint8_t* tile = &map->arr[t_pos.y][t_pos.x];
+      if (GetGroupFromTileType(*tile) != tt_wall_bottom) continue;
+      uint8_t sig = GetSignature(map, t_pos);
+      for (int p = 0; p < ARRAY_LENGTH(patterns_breakwall); p++) {
+        if ((sig | masks_breakwall[p]) == (patterns_breakwall[p] | masks_breakwall[p])) {
+          *tile = tt_floor;
+          break;
+        }
+      }
+    }
+  }
+}
+
 // int tdx[2][4] = {{-1, 0, 1, -1}, {1, -1, 0, 1}};
 // int tdy[2][4] = {{-1, -1, -1, 0}, {0, 1, 1, 1}};
 // Pattern patterns[1] = {0};
 // void ReplaceTileFromPattern(Map* map, Pattern p) {
-//   for (int my = 0; my < map_max_height; my++) {
-//     for (int mx = 0; mx < map_max_width; mx++) {
-//       if (GetIdFromTextureId(map->arr[my][mx].texture.id) > 1) {
-//         Condition curr_cond = {0};
-//         for (int d1 = 0; d1 < 2; d1++) {
-//           for (int d2 = 0; d2 < 4; d2++) {
-//             V2 newpos = {mx + tdx[d1][d2], my + tdy[d1][d2]};
-//             if (!IsInBounds(newpos)) {
-//               curr_cond.cond_halves[d1] =
-//                   SetHalfNibInByteAtI(curr_cond.cond_halves[d1], 0b00000001, d2);
-//             } else {
-//               curr_cond.cond_halves[d1] = SetHalfNibInByteAtI(
-//                   curr_cond.cond_halves[d1],
-//                   GetIdFromTextureId(map->arr[newpos.y][newpos.x].texture.id), d2);
-//             }
-//           }
-//         }
-//         if (DoesConditionMatch(p.old_pattern, curr_cond)) {
-//           for (int d1 = 0; d1 < 2; d1++) {
-//             for (int d2 = 0; d2 < 4; d2++) {
-//               text_ids[GetHalfNibFromByteAtI(p.new_pattern.cond_halves[d1], d2)] map
-//                   ->arr[my + t * dy[d2]][mx + t * dx[d2]] = DeepCopyMapTile(p.new_pattern[t]);
-//             }
-//           }
-//         }
-//       }
+//   for (int b = 0; b < 8; b++) {
+//     V2 newpos = {mx + tdx[d1][d2], my + tdy[d1][d2]};
+//     if (!IsInBounds(newpos)) {
+//       curr_cond.cond_halves[d1] = SetHalfNibInByteAtI(curr_cond.cond_halves[d1], 0b00000001, d2);
+//     } else {
+//       curr_cond.cond_halves[d1] =
+//           SetHalfNibInByteAtI(curr_cond.cond_halves[d1],
+//                               GetIdFromTextureId(map->arr[newpos.y][newpos.x].texture.id), d2);
 //     }
 //   }
+// }
+// if (DoesConditionMatch(p.old_pattern, curr_cond)) {
+//   for (int d1 = 0; d1 < 2; d1++) {
+//     for (int d2 = 0; d2 < 4; d2++) {
+//       text_ids[GetHalfNibFromByteAtI(p.new_pattern.cond_halves[d1], d2)] map
+//           ->arr[my + t * dy[d2]][mx + t * dx[d2]] = DeepCopyMapTile(p.new_pattern[t]);
+//     }
+//   }
+// }
+// }
+// }
+// }
 // }
 
 // void BreakWallsOnMap(Map* map) {
@@ -460,7 +508,6 @@ int main(void) {
   // text_ids[3] = wall_texture.id;
   // patterns[0] = (Pattern){{0b00000010, 0b10000000}, {0b00000010, 0b10000000}};
 
-
   Player player = {0};
   player.pos.x = 150;
   player.pos.y = 150;
@@ -479,7 +526,7 @@ int main(void) {
   CreateRoom(&map, (Rec){0, 0, 10, 10});
   CreateRoom(&map, (Rec){9, 3, 6, 4});
   CreateRoom(&map, (Rec){14, 0, 10, 10});
-  // BreakWallsOnMap(&map);
+  BreakWalls(&map);
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
@@ -509,6 +556,8 @@ int main(void) {
                    (Vector2){player.width / 2.0, player.height / 2.0},
                    player.character.anim.facing * RAD2DEG, WHITE);
     EndMode2D();
+    // const char* text = TextFormat("%f, %f", player.pos.x, player.pos.y);
+    // DrawText(text, 0, 0, tile_size, RED);
     EndDrawing();
   }
   for (int t = 0; t < 4; t++) UnloadTexture(wall_texture);
