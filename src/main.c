@@ -71,7 +71,6 @@ Texture2D textures[tex_count] = {0};
 
 typedef struct MapTile {
   texture_type texture;
-  int rot;
   bool can_col;
 } MapTile;
 
@@ -98,23 +97,23 @@ typedef enum tile_type {
 } tile_type;
 
 MapTile tiles[tt_count] = {
-    [tt_empty] = {0, 0, true},
-    [tt_floor] = {tex_floor, 0, false},
+    [tt_empty] = {0, true},
+    [tt_floor] = {tex_floor, false},
 
-    [tt_wall_bottom] = {tex_wall_bottom, 0, true},
-    [tt_wall_left] = {tex_wall_left, 1, true},
-    [tt_wall_top] = {tex_wall_top, 2, true},
-    [tt_wall_right] = {tex_wall_right, 3, true},
+    [tt_wall_bottom] = {tex_wall_bottom, true},
+    [tt_wall_left] = {tex_wall_left, true},
+    [tt_wall_top] = {tex_wall_top, true},
+    [tt_wall_right] = {tex_wall_right, true},
 
-    [tt_wall_outside_corner_topleft] = {tex_outer_corner_topleft, 0, true},
-    [tt_wall_outside_corner_topright] = {tex_outer_corner_topright, 1, true},
-    [tt_wall_outside_corner_bottomright] = {tex_outer_corner_bottomright, 2, true},
-    [tt_wall_outside_corner_bottomleft] = {tex_outer_corner_bottomleft, 3, true},
+    [tt_wall_outside_corner_topleft] = {tex_outer_corner_topleft, true},
+    [tt_wall_outside_corner_topright] = {tex_outer_corner_topright, true},
+    [tt_wall_outside_corner_bottomright] = {tex_outer_corner_bottomright, true},
+    [tt_wall_outside_corner_bottomleft] = {tex_outer_corner_bottomleft, true},
 
-    [tt_wall_inner_corner_topleft] = {tex_inner_corner_topleft, 0, true},
-    [tt_wall_inner_corner_topright] = {tex_inner_corner_topright, 1, true},
-    [tt_wall_inner_corner_bottomright] = {tex_inner_corner_bottomright, 2, true},
-    [tt_wall_inner_corner_bottomleft] = {tex_inner_corner_bottomleft, 3, true},
+    [tt_wall_inner_corner_topleft] = {tex_inner_corner_topleft, true},
+    [tt_wall_inner_corner_topright] = {tex_inner_corner_topright, true},
+    [tt_wall_inner_corner_bottomright] = {tex_inner_corner_bottomright, true},
+    [tt_wall_inner_corner_bottomleft] = {tex_inner_corner_bottomleft, true},
 };
 
 static const uint8_t patterns_breakwall[] = {0, 0};
@@ -542,7 +541,7 @@ int main(void) {
   CreateRoom(&map, (Rec){0, 0, 10, 10});
   CreateRoom(&map, (Rec){9, 3, 6, 4});
   CreateRoom(&map, (Rec){14, 0, 10, 10});
-  CreateRoom(&map, (Rec){18, 9,4, 5});
+  CreateRoom(&map, (Rec){18, 9, 4, 5});
   BreakWalls(&map);
   PrettyTiles(&map);
 
