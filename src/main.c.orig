@@ -14,7 +14,10 @@
 #define structure_max_width 16
 #define structure_max_height 16
 enum { tile_size = 64, hallway_size = 2, num_chars = 1 };
-
+Texture2D wall_texture;
+Texture2D wall_corner_texture;
+Texture2D tile_texture;
+Texture2D wall_background_texture;
 typedef struct Animation {
   int curr_sprite;
   int anim_speed;
@@ -48,22 +51,9 @@ typedef struct V2 {
 typedef enum texture_type {
   tex_empty,
   tex_floor,
-
-  tex_wall_bottom,
-  tex_wall_left,
-  tex_wall_top,
-  tex_wall_right,
-
-  tex_outer_corner_topleft,
-  tex_outer_corner_topright,
-  tex_outer_corner_bottomright,
-  tex_outer_corner_bottomleft,
-
-  tex_inner_corner_topleft,
-  tex_inner_corner_topright,
-  tex_inner_corner_bottomright,
-  tex_inner_corner_bottomleft,
-
+  tex_wall,
+  tex_outer_corner,
+  tex_inner_corner,
   tex_count,
 } texture_type;
 
@@ -78,43 +68,36 @@ typedef struct MapTile {
 typedef enum tile_type {
   tt_empty,
   tt_floor,
-
   tt_wall_bottom,
   tt_wall_left,
   tt_wall_top,
   tt_wall_right,
-
   tt_wall_outside_corner_topleft,
   tt_wall_outside_corner_topright,
   tt_wall_outside_corner_bottomright,
   tt_wall_outside_corner_bottomleft,
-
   tt_wall_inner_corner_topleft,
   tt_wall_inner_corner_topright,
   tt_wall_inner_corner_bottomright,
   tt_wall_inner_corner_bottomleft,
-
   tt_count,
 } tile_type;
 
 MapTile tiles[tt_count] = {
     [tt_empty] = {0, 0, true},
-    [tt_floor] = {tex_floor, 0, false},
-
-    [tt_wall_bottom] = {tex_wall_bottom, 0, true},
-    [tt_wall_left] = {tex_wall_left, 1, true},
-    [tt_wall_top] = {tex_wall_top, 2, true},
-    [tt_wall_right] = {tex_wall_right, 3, true},
-
-    [tt_wall_outside_corner_topleft] = {tex_outer_corner_topleft, 0, true},
-    [tt_wall_outside_corner_topright] = {tex_outer_corner_topright, 1, true},
-    [tt_wall_outside_corner_bottomright] = {tex_outer_corner_bottomright, 2, true},
-    [tt_wall_outside_corner_bottomleft] = {tex_outer_corner_bottomleft, 3, true},
-
-    [tt_wall_inner_corner_topleft] = {tex_inner_corner_topleft, 0, true},
-    [tt_wall_inner_corner_topright] = {tex_inner_corner_topright, 1, true},
-    [tt_wall_inner_corner_bottomright] = {tex_inner_corner_bottomright, 2, true},
-    [tt_wall_inner_corner_bottomleft] = {tex_inner_corner_bottomleft, 3, true},
+    [tt_floor] = {0, 0, false},
+    [tt_wall_bottom] = {0, 0, true},
+    [tt_wall_left] = {0, 1, true},
+    [tt_wall_top] = {0, 2, true},
+    [tt_wall_right] = {0, 3, true},
+    [tt_wall_outside_corner_topleft] = {0, 0, true},
+    [tt_wall_outside_corner_topright] = {0, 1, true},
+    [tt_wall_outside_corner_bottomright] = {0, 2, true},
+    [tt_wall_outside_corner_bottomleft] = {0, 3, true},
+    [tt_wall_inner_corner_topleft] = {0, 0, true},
+    [tt_wall_inner_corner_topright] = {0, 1, true},
+    [tt_wall_inner_corner_bottomright] = {0, 2, true},
+    [tt_wall_inner_corner_bottomleft] = {0, 3, true},
 };
 
 static const uint8_t patterns_breakwall[] = {0, 0};
@@ -126,19 +109,16 @@ static const uint8_t masks_pretty_outside_corners[] = {47, 151, 244, 233};
 static const uint8_t patterns_pretty_inner_corners[] = {80, 72, 10, 18};
 static const uint8_t masks_pretty_inner_corners[] = {128, 32, 1, 4};
 
-static const tile_type tile_groups[] = {tt_wall_bottom, tt_wall_outside_corner_topleft,
-                                        tt_wall_inner_corner_topleft};
-static const tile_type tile_type_to_tile_group[tt_count] = {
+static const tile_type tile_groups[] = {tt_wall_bottom, tt_wall_outside_corner_topleft};
+static const tile_type tile_type_to_tile_group[] = {
     [tt_wall_bottom] = tt_wall_bottom,
     [tt_wall_left] = tt_wall_bottom,
     [tt_wall_top] = tt_wall_bottom,
     [tt_wall_right] = tt_wall_bottom,
-
     [tt_wall_outside_corner_topleft] = tt_wall_outside_corner_topleft,
     [tt_wall_outside_corner_topright] = tt_wall_outside_corner_topleft,
     [tt_wall_outside_corner_bottomright] = tt_wall_outside_corner_topleft,
     [tt_wall_outside_corner_bottomleft] = tt_wall_outside_corner_topleft,
-
     [tt_wall_inner_corner_topleft] = tt_wall_inner_corner_topleft,
     [tt_wall_inner_corner_topright] = tt_wall_inner_corner_topleft,
     [tt_wall_inner_corner_bottomright] = tt_wall_inner_corner_topleft,
@@ -372,7 +352,8 @@ void RotateEnvObjs(Structure* dest, Structure* source, Rec envobjs, int rot) {
 }
 
 void CreateWall(Structure* wallobjs, Rec rec) {
-  RecTiles(wallobjs, (Rec){rec.x, rec.y, rec.width, rec.height}, tt_wall_top);
+  RecTiles(wallobjs, (Rec){rec.x, rec.y, rec.width, rec.height},
+           tt_wall_top);
 }
 
 void CreateRoom(Map* map, Rec rec) {
@@ -400,6 +381,13 @@ void CreateRoom(Map* map, Rec rec) {
 
 bool IsInBounds(V2 pos) {
   return pos.x >= 0 && pos.y >= 0 && pos.x < map_max_width && pos.y < map_max_height;
+}
+
+bool DoesConditionMatch(Condition c1, Condition c2) {
+  for (int h = 0; h < 2; h++) {
+    if (c1.cond_halves[h] != c2.cond_halves[h]) return false;
+  }
+  return true;
 }
 
 uint8_t GetGroupFromTileType(uint8_t tile) {
@@ -463,66 +451,29 @@ void BreakWalls(Map* map) {
   }
 }
 
-void MakeRotatedTextures(ResourceID img_res_id, texture_type text_idx_base) {
-  Image img = ResourceImage(img_res_id);
-  for (int rot = 0; rot < 4; rot++) {
-    textures[text_idx_base + rot] = LoadTextureFromImage(img);
-    if (rot == 3) break;  // save an unnecessary rotate
-    ImageRotateCW(&img);
-  }
-  UnloadImage(img);
-}
-
-void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int screenHeight) {
-  // culling to the viewport to reduce CPU load
-  Vector2 top_left = GetScreenToWorld2D((Vector2){0, 0}, *camera);
-  Vector2 bottom_right = GetScreenToWorld2D((Vector2){screenWidth, screenHeight}, *camera);
-  int minx = (int)(top_left.x / tile_size) - 1;
-  int miny = (int)(top_left.y / tile_size) - 1;
-  int maxx = (int)(bottom_right.x / tile_size) + 1;
-  int maxy = (int)(bottom_right.y / tile_size) + 1;
-
-  minx = Clamp(minx, 0, map_max_width - 1);
-  maxx = Clamp(maxx, 0, map_max_width - 1);
-  miny = Clamp(miny, 0, map_max_height - 1);
-  maxy = Clamp(maxy, 0, map_max_height - 1);
-
-  // now render unculled area
-  for (int my = miny; my <= maxy; my++) {
-    for (int mx = minx; mx <= maxx; mx++) {
-      MapTile* tile = &tiles[map->arr[my][mx]];
-      Texture2D* tex = &textures[tile->texture];
-      DrawTextureRec(*tex, (Rectangle){0, 0, tex->width, tex->height},
-                     (Vector2){mx * tile_size, my * tile_size}, WHITE);
-    }
-  }
-}
-
-void RenderPlayer(const Player* player) {
-  // render player
-  DrawTexturePro(player->character.sprite_sheet,
-                 (Rectangle){player->character.anim.curr_sprite * player->width, 0, player->width,
-                             player->height},
-                 (Rectangle){player->pos.x + player->width / 2.0,
-                             player->pos.y + player->height / 2.0, player->width, player->height},
-                 (Vector2){player->width / 2.0, player->height / 2.0},
-                 player->character.anim.facing * RAD2DEG, WHITE);
-}
-
 int main(void) {
   InitWindow(0, 0, "Game");
 
   const int screenWidth = GetMonitorWidth(GetCurrentMonitor());
   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
 
-  MakeRotatedTextures(RES_WALL, tex_wall_bottom);
-  MakeRotatedTextures(RES_WALL_OUTSIDE_CORNER, tex_outer_corner_topleft);
-  MakeRotatedTextures(RES_WALL_INSIDE_CORNER, tex_inner_corner_topleft);
-
+  textures[tex_wall] = ResourceTexture(RES_WALL);
   textures[tex_floor] = ResourceTexture(RES_FLOOR);
+  textures[tex_outer_corner] = ResourceTexture(RES_WALL_OUTSIDE_CORNER);
+  textures[tex_inner_corner] = ResourceTexture(RES_WALL_INSIDE_CORNER);
 
   Character Chars[num_chars] = {
       (Character){"Wizard", ResourceTexture(RES_WIZARD), 0, 2, 5, 1, (Animation){0, 8, 0, 0}}};
+
+  tiles[tt_floor].texture = tex_floor;
+  tiles[tt_wall_top].texture = tiles[tt_wall_left].texture = tiles[tt_wall_right].texture =
+      tiles[tt_wall_bottom].texture = tex_wall;
+  tiles[tt_wall_outside_corner_topleft].texture = tiles[tt_wall_outside_corner_topright].texture =
+      tiles[tt_wall_outside_corner_bottomright].texture =
+          tiles[tt_wall_outside_corner_bottomleft].texture = tex_outer_corner;
+  tiles[tt_wall_inner_corner_topleft].texture = tiles[tt_wall_inner_corner_topright].texture =
+      tiles[tt_wall_inner_corner_bottomright].texture =
+          tiles[tt_wall_inner_corner_bottomleft].texture = tex_inner_corner;
 
   Player player = {0};
   player.pos.x = 150;
@@ -550,16 +501,35 @@ int main(void) {
   while (!WindowShouldClose()) {
     MovePlayer(&player, &camera, &map);
     BeginDrawing();
+
     ClearBackground(RAYWHITE);
+
     BeginMode2D(camera);
-    RenderTiles(&map, &camera, screenWidth, screenHeight);
-    RenderPlayer(&player);
+
+    for (int my = 0; my < map_max_height; my++) {
+      for (int mx = 0; mx < map_max_width; mx++) {
+        DrawTexturePro(textures[tiles[map.arr[my][mx]].texture],
+                       (Rectangle){0, 0, textures[tiles[map.arr[my][mx]].texture].width,
+                                   textures[tiles[map.arr[my][mx]].texture].height},
+                       (Rectangle){(mx + 1 / 2.0) * tile_size, (my + 1 / 2.0) * tile_size,
+                                   tile_size, tile_size},
+                       (Vector2){tile_size / 2.0, tile_size / 2.0}, tiles[map.arr[my][mx]].rot * 90,
+                       WHITE);
+      }
+    }
+    DrawTexturePro(player.character.sprite_sheet,
+                   (Rectangle){player.character.anim.curr_sprite * player.width, 0, player.width,
+                               player.height},
+                   (Rectangle){player.pos.x + player.width / 2.0,
+                               player.pos.y + player.height / 2.0, player.width, player.height},
+                   (Vector2){player.width / 2.0, player.height / 2.0},
+                   player.character.anim.facing * RAD2DEG, WHITE);
     EndMode2D();
     // const char* text = TextFormat("%f, %f", player.pos.x, player.pos.y);
     // DrawText(text, 0, 0, tile_size, RED);
     EndDrawing();
   }
-  for (int i = 0; i < ARRAY_LENGTH(textures); i++) UnloadTexture(textures[i]);
+  for (int t = 0; t < 4; t++) UnloadTexture(wall_texture);
   CloseWindow();
   return 0;
 }
