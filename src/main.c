@@ -16,6 +16,10 @@
 enum { tile_size = 64, hallway_size = 2, num_chars = 1 };
 
 typedef struct Animation {
+  int initial_sprite;
+  int first_active_sprite;
+  int last_active_sprite;
+  int first_inactive_sprite;
   int curr_sprite;
   int anim_speed;
   int anim_frame_counter;
@@ -24,12 +28,10 @@ typedef struct Animation {
 
 typedef struct Character {
   char* name;
-  Texture2D sprite_sheet;
-  int stopped_sprite;
-  int first_walk_sprite;
-  int last_walk_sprite;
-  int first_stopping_sprite;
-  Animation anim;
+  Texture2D body_sprite_sheet;
+  Texture2D hands_sprite_sheet;
+  Animation body_anim;
+  Animation hand_anim;
 } Character;
 
 typedef struct Player {
@@ -254,11 +256,33 @@ bool Collided(ScreenPos r1, ScreenPos r2) {
           PBetween2P(r1.y + tile_size - 1, r2.y, r2.y + tile_size - 1));
 }
 
+void GoToNextSprite(Animation* anim, bool active) {
+  if (anim->anim_frame_counter >= anim->anim_speed) {
+    if (active) {
+      anim->anim_frame_counter = 0;
+      if (anim->curr_sprite == anim->last_active_sprite) {
+        anim->curr_sprite = anim->first_active_sprite;
+      } else {
+        anim->curr_sprite += 1;
+      }
+
+    } else {
+      anim->anim_frame_counter = 0;
+      if (anim->curr_sprite > anim->first_inactive_sprite)
+        anim->curr_sprite = anim->first_inactive_sprite;
+      else if (!(anim->curr_sprite == anim->initial_sprite))
+        anim->curr_sprite -= 1;
+    }
+  }
+  anim->anim_frame_counter++;
+}
+
 int rotation[4] = {0, 1, 2, 3};
 void MovePlayer(Player* p, Camera2D* c, Map* map) {
   V2 dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
   // V2 dir_vec = {-1, 1};
-  if (!(dir_vec.x == 0 && dir_vec.y == 0)) {
+  bool is_moving = !(dir_vec.x == 0 && dir_vec.y == 0);
+  if (is_moving) {
     float mag = p->speed;
     float rot = atan2(dir_vec.y, dir_vec.x);
     int newx = p->pos.x + mag * ROUND3DP(cos(rot));
@@ -293,26 +317,11 @@ void MovePlayer(Player* p, Camera2D* c, Map* map) {
       p->pos.y = V2ToScreenPos(col_tile).y;
     }
 
-    p->character.anim.facing = rot;
-    if (p->character.anim.anim_frame_counter >= p->character.anim.anim_speed) {
-      p->character.anim.anim_frame_counter = 0;
-      if (p->character.anim.curr_sprite == p->character.last_walk_sprite) {
-        p->character.anim.curr_sprite = p->character.first_walk_sprite;
-      } else {
-        p->character.anim.curr_sprite += 1;
-      }
-    }
+    p->character.body_anim.facing = rot;
     c->target = p->pos;
-  } else {
-    if (p->character.anim.anim_frame_counter >= p->character.anim.anim_speed) {
-      p->character.anim.anim_frame_counter = 0;
-      if (p->character.anim.curr_sprite > p->character.first_stopping_sprite)
-        p->character.anim.curr_sprite = p->character.first_stopping_sprite;
-      else if (!(p->character.anim.curr_sprite == p->character.stopped_sprite))
-        p->character.anim.curr_sprite -= 1;
-    }
   }
-  p->character.anim.anim_frame_counter++;
+  GoToNextSprite(&p->character.body_anim, is_moving);
+  GoToNextSprite(&p->character.hand_anim, is_moving);
 }
 void RecTiles(Structure* structure, Rec rec, tile_type tile) {
   for (int y = 0; y < rec.height; y++) {
@@ -499,13 +508,20 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
 
 void RenderPlayer(const Player* player) {
   // render player
-  DrawTexturePro(player->character.sprite_sheet,
-                 (Rectangle){player->character.anim.curr_sprite * player->width, 0, player->width,
-                             player->height},
+  DrawTexturePro(player->character.body_sprite_sheet,
+                 (Rectangle){player->character.body_anim.curr_sprite * player->width, 0,
+                             player->width, player->height},
                  (Rectangle){player->pos.x + player->width / 2.0,
                              player->pos.y + player->height / 2.0, player->width, player->height},
                  (Vector2){player->width / 2.0, player->height / 2.0},
-                 player->character.anim.facing * RAD2DEG, WHITE);
+                 player->character.body_anim.facing * RAD2DEG, WHITE);
+  DrawTexturePro(player->character.hands_sprite_sheet,
+                 (Rectangle){player->character.body_anim.curr_sprite * player->width, 0,
+                             player->width, player->height},
+                 (Rectangle){player->pos.x + player->width / 2.0,
+                             player->pos.y + player->height / 2.0, player->width, player->height},
+                 (Vector2){player->width / 2.0, player->height / 2.0},
+                 player->character.body_anim.facing * RAD2DEG, WHITE);
 }
 
 int main(void) {
@@ -520,8 +536,9 @@ int main(void) {
 
   textures[tex_floor] = ResourceTexture(RES_FLOOR);
 
-  Character Chars[num_chars] = {
-      (Character){"Wizard", ResourceTexture(RES_WIZARD), 0, 2, 5, 1, (Animation){0, 8, 0, 0}}};
+  Character Chars[num_chars] = {(Character){"Wizard", ResourceTexture(RES_WIZARD), ResourceTexture(RES_HANDS),
+                                            (Animation){0, 2, 5, 1, 0, 8, 0, 0},
+                                            (Animation){0, 0, 5, 0, 0, 8, 0, 0}}};
 
   Player player = {0};
   player.pos.x = 150;
