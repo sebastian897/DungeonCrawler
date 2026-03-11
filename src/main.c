@@ -15,11 +15,19 @@
 #define structure_max_height 16
 enum { tile_size = 64, hallway_size = 2, num_chars = 1 };
 
+bool debug = false;
+
 typedef enum anim_state {
-  idle,
-  inactive,
-  active,
+  as_idle,
+  as_inactive,
+  as_active,
 } anim_state;
+
+typedef enum anim_action {
+  aa_walking,
+  aa_attacking,
+  aa_count,
+} anim_action;
 
 typedef struct AnimationSetup {
   Texture2D sprite_sheet;
@@ -28,16 +36,16 @@ typedef struct AnimationSetup {
   int last_active_sprite;
   int first_inactive_sprite;
   int anim_speed;
+  bool valid;
 } AnimationSetup;
-
-// AnimationSetup hand_animations[] = {}
 
 typedef struct Animation {
   int curr_sprite;
   int anim_frame_counter;
   float rot;
   anim_state anim_state;
-  AnimationSetup anim_setup;
+  anim_action anim_action;
+  AnimationSetup anim_setups[aa_count];
 } Animation;
 
 typedef struct Weapon {
@@ -52,8 +60,6 @@ typedef struct Character {
   char* name;
   Animation body_anim;
   Animation hand_anim;
-  AnimationSetup body_walking_anim;
-  AnimationSetup hand_walking_anim;
 } Character;
 
 typedef struct Player {
@@ -180,10 +186,6 @@ typedef struct MapPos {
   int y;
 } MapPos;
 
-// typedef struct TileType {
-//   uint8_t type;
-// } TileType;
-
 typedef struct Condition {
   uint8_t cond_halves[2];
 } Condition;
@@ -204,14 +206,6 @@ typedef struct Structure {
   tile_idx arr[map_max_height][map_max_width];
   V2 pos;
 } Structure;
-
-// MapTile DeepCopyMapTile(MapTile tile) {
-//   return (MapTile){tile.texture, tile.rot, tile.can_col};
-// }
-
-Animation CreateEmptyAnimation(AnimationSetup anim_stats) {
-  return (Animation){0, 0, 0, active, anim_stats};
-}
 
 V2 V2Empty() {
   return (V2){0, 0};
@@ -285,30 +279,33 @@ bool Collided(ScreenPos r1, ScreenPos r2) {
 
 void GoToNextSprite(Animation* anim) {
   anim->anim_frame_counter++;
-  if (anim->anim_frame_counter >= anim->anim_setup.anim_speed) {
+  if (anim->anim_frame_counter >=
+      anim->anim_setups[anim->anim_action]
+          .anim_speed) {
     anim->anim_frame_counter = 0;
-    switch (anim->anim_state) {
-      case active:
-        if (anim->curr_sprite == anim->anim_setup.last_active_sprite) {
-          anim->curr_sprite = anim->anim_setup.first_active_sprite;
-        } else {
-          anim->curr_sprite += 1;
-        }
-        break;
-      case inactive:
-        if (anim->curr_sprite > anim->anim_setup.initial_sprite)
-          anim->curr_sprite -= 1;
+    if (anim->anim_state == as_active) {
+      if (anim->curr_sprite == anim->anim_setups[anim->anim_action].last_active_sprite) {
+        if (anim->anim_action == aa_attacking)
+          anim->anim_state = as_inactive;
         else
-          anim->anim_state = idle;
-        break;
-      case idle:
-        break;
+          anim->curr_sprite = anim->anim_setups[anim->anim_action].first_active_sprite;
+      } else {
+        anim->curr_sprite += 1;
+      }
+    }
+    if (anim->anim_state == as_inactive) {
+      if (anim->curr_sprite >= anim->anim_setups[anim->anim_action].first_active_sprite)
+        anim->curr_sprite = anim->anim_setups[anim->anim_action].first_inactive_sprite;
+      else if (anim->curr_sprite > anim->anim_setups[anim->anim_action].initial_sprite)
+        anim->curr_sprite -= 1;
+      else {
+        anim->anim_state = as_idle;
+      }
+    }
+    if (anim->anim_state == as_idle) {
+      anim->anim_action = aa_walking;
     }
   }
-}
-
-void StartAnimation(Animation* player_anim, AnimationSetup new_anim) {
-  *player_anim = CreateEmptyAnimation(new_anim);
 }
 
 int rotation[4] = {0, 1, 2, 3};
@@ -316,7 +313,6 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
   V2 dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
   // V2 dir_vec = {-1, 1};
   bool is_moving = !(dir_vec.x == 0 && dir_vec.y == 0);
-  // p->is_moving = is_moving;
   if (is_moving) {
     float mag = p->speed;
     float rot = atan2(dir_vec.y, dir_vec.x);
@@ -353,22 +349,28 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
     }
 
     c->target = p->pos;
-    if (p->character.body_anim.anim_state == idle)
-      StartAnimation(&p->character.body_anim, p->character.body_walking_anim);
-    if (p->character.hand_anim.anim_state == idle)
-      StartAnimation(&p->character.hand_anim, p->character.hand_walking_anim);
-    p->character.body_anim.rot = rot;
-    p->character.body_anim.anim_state = active;
+    if (p->character.body_anim.anim_action == aa_walking) {
+      p->character.body_anim.anim_state = as_active;
+      p->character.body_anim.rot = rot;
+    }
+    if (p->character.hand_anim.anim_action == aa_walking) {
+      p->character.hand_anim.rot = rot;
+      p->character.hand_anim.anim_state = as_active;
+    }
   } else {
-    p->character.body_anim.anim_state = inactive;
+    if (p->character.body_anim.anim_action == aa_walking)
+      p->character.body_anim.anim_state = as_inactive;
+    if (p->character.hand_anim.anim_action == aa_walking)
+      p->character.hand_anim.anim_state = as_inactive;
   }
 }
 
 void PlayerAttack(Player* player) {
-  bool is_attacking =
-      IsMouseButtonDown(MOUSE_LEFT_BUTTON) && player->character.hand_anim.anim_state == idle;
+  bool is_attacking = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
   if (is_attacking) {
-    StartAnimation(&player->character.hand_anim, player->weapon.hand_attacking_anim);
+    player->character.hand_anim.anim_action = aa_attacking;
+    player->character.hand_anim.anim_state = as_active;
+    // StartAnimation(&player->character.hand_anim, player->weapon.hand_attacking_anim);
   }
 }
 
@@ -562,7 +564,8 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
 
 void RenderPlayer(const Player* player) {
   // render player
-  Texture2D hands_texture = player->character.hand_anim.anim_setup.sprite_sheet;
+  Texture2D hands_texture =
+      player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet;
   DrawTexturePro(hands_texture,
                  (Rectangle){player->character.hand_anim.curr_sprite * player->width, 0,
                              player->width, player->height},
@@ -570,13 +573,14 @@ void RenderPlayer(const Player* player) {
                              player->pos.y + player->height / 2.0, player->width, player->height},
                  (Vector2){player->width / 2.0, player->height / 2.0},
                  player->character.hand_anim.rot * RAD2DEG, WHITE);
-  DrawTexturePro(player->character.body_anim.anim_setup.sprite_sheet,
-                 (Rectangle){player->character.body_anim.curr_sprite * player->width, 0,
-                             player->width, player->height},
-                 (Rectangle){player->pos.x + player->width / 2.0,
-                             player->pos.y + player->height / 2.0, player->width, player->height},
-                 (Vector2){player->width / 2.0, player->height / 2.0},
-                 player->character.body_anim.rot * RAD2DEG, WHITE);
+  DrawTexturePro(
+      player->character.body_anim.anim_setups[player->character.body_anim.anim_action].sprite_sheet,
+      (Rectangle){player->character.body_anim.curr_sprite * player->width, 0, player->width,
+                  player->height},
+      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
+                  player->width, player->height},
+      (Vector2){player->width / 2.0, player->height / 2.0},
+      player->character.body_anim.rot * RAD2DEG, WHITE);
 }
 
 int main(void) {
@@ -591,25 +595,29 @@ int main(void) {
 
   textures[tex_floor] = ResourceTexture(RES_FLOOR);
 
-  Character Chars[num_chars] = {
-      {"Wizard",
-       {0},
-       {0},
-       (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8},
-       (AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 0, 5, 0, 16}}};
+  Character chars[num_chars] = {(Character){
+      "Wizard",
+      (Animation){0,
+                  0,
+                  0,
+                  as_idle,
+                  aa_walking,
+                  {(AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true},
+                   (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true}}},
+      (Animation){0,
+                  0,
+                  0,
+                  as_idle,
+                  aa_walking,
+                  {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
+                   (AnimationSetup){{0}, 0, 0, 0, 0, 0, false}}}}};
 
-  // Animation walking_anim;
-  // Animation attacking_anim;
-  // Animation effect_anim;
-  // Animation hand_attacking_anim;
-  // bool can_hold;
-
-  Weapon Weapons[] = {(Weapon){
-      {0},
-      {0},
-      CreateEmptyAnimation((AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY), 0, 0, 10, 0, 4}),
-      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 0, 10, 0, 4},
-      false}};
+  Weapon weapons[] = {
+      (Weapon){{0},
+               {0},
+               {0},
+               (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 2, true},
+               false}};
 
   Player player = {0};
   player.pos.x = 150;
@@ -617,16 +625,15 @@ int main(void) {
   player.width = 64;
   player.height = 64;
   player.speed = 5;
-  player.character = Chars[0];
-  player.weapon = Weapons[0];
+  player.character = chars[0];
+  player.weapon = weapons[0];
+  player.character.hand_anim.anim_setups[1] = player.weapon.hand_attacking_anim;
 
   Camera2D camera = {0};
   camera.target = player.pos;
   camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
   camera.rotation = 0.0f;
   camera.zoom = 2.0f;
-
-  player.character.body_anim.anim_setup = player.character.body_walking_anim;
 
   Map map = {0};
   CreateRoom(&map, (Rec){0, 0, 10, 10});
@@ -647,8 +654,16 @@ int main(void) {
     RenderTiles(&map, &camera, screenWidth, screenHeight);
     RenderPlayer(&player);
     EndMode2D();
-    const char* text = TextFormat("%d %d", player.character.hand_anim.anim_setup.sprite_sheet.id, player.character.hand_anim.curr_sprite);
-    DrawText(text, 0, 0, tile_size, RED);
+    // const char* hand_anim_text =
+    //     TextFormat("%d %d %d",
+    //                player.character.hand_anim.anim_action,
+    //                player.character.hand_anim.curr_sprite, player.character.hand_anim.anim_state);
+    // DrawText(hand_anim_text, 0, 0, tile_size, RED);
+    //     const char* body_anim_text =
+    //     TextFormat("%d %d %d",
+    //                player.character.body_anim.anim_action,
+    //                player.character.body_anim.curr_sprite, player.character.body_anim.anim_state);
+    // DrawText(body_anim_text, 0, 100, tile_size, RED);
     EndDrawing();
   }
   for (int i = 0; i < ARRAY_LENGTH(textures); i++) UnloadTexture(textures[i]);
