@@ -69,6 +69,7 @@ typedef struct Player {
   float speed;
   Character character;
   Weapon weapon;
+  Camera2D cam;
 } Player;
 
 typedef struct V2 {
@@ -247,6 +248,11 @@ ScreenPos V2ToScreenPos(V2 v) {
   return (ScreenPos){v.x * tile_size, v.y * tile_size};
 }
 
+
+V2 V2ToScreenPosV2(V2 v) {
+  return (V2){v.x * tile_size, v.y * tile_size};
+}
+
 void AddContentsToStruct(Structure* dest, Structure* source) {
   for (int ty = 0; ty < structure_max_height; ty++) {
     for (int tx = 0; tx < structure_max_width; tx++) {
@@ -279,9 +285,7 @@ bool Collided(ScreenPos r1, ScreenPos r2) {
 
 void GoToNextSprite(Animation* anim) {
   anim->anim_frame_counter++;
-  if (anim->anim_frame_counter >=
-      anim->anim_setups[anim->anim_action]
-          .anim_speed) {
+  if (anim->anim_frame_counter >= anim->anim_setups[anim->anim_action].anim_speed) {
     anim->anim_frame_counter = 0;
     if (anim->anim_state == as_active) {
       if (anim->curr_sprite == anim->anim_setups[anim->anim_action].last_active_sprite) {
@@ -306,6 +310,10 @@ void GoToNextSprite(Animation* anim) {
       anim->anim_action = aa_walking;
     }
   }
+}
+
+V2 GetMousePos() {
+  return (V2){GetMouseX(), GetMouseY()};
 }
 
 int rotation[4] = {0, 1, 2, 3};
@@ -370,13 +378,28 @@ void PlayerAttack(Player* player) {
   if (is_attacking) {
     player->character.hand_anim.anim_action = aa_attacking;
     player->character.hand_anim.anim_state = as_active;
+    player->weapon.effect_anim.anim_action = aa_attacking;
+    player->weapon.effect_anim.anim_state = as_active;
     // StartAnimation(&player->character.hand_anim, player->weapon.hand_attacking_anim);
   }
+}
+
+void RotAttackAnim(Player* player) {
+  V2 mouse_pos = GetMousePos();
+  V2 player_screenpos = Vector2ToV2(player->cam.offset);
+  V2 dir = SubV2(mouse_pos, player_screenpos);
+  float rot = atan2(dir.y, dir.x);
+
+  if (player->character.hand_anim.anim_action == aa_attacking)
+    player->character.hand_anim.rot = rot;
+  if (player->weapon.effect_anim.anim_action == aa_attacking) player->weapon.effect_anim.rot = rot;
 }
 
 void AnimatePlayer(Player* player) {
   GoToNextSprite(&player->character.body_anim);
   GoToNextSprite(&player->character.hand_anim);
+  GoToNextSprite(&player->weapon.effect_anim);
+  RotAttackAnim(player);
 }
 
 void RecTiles(Structure* structure, Rec rec, tile_type tile) {
@@ -564,15 +587,22 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
 
 void RenderPlayer(const Player* player) {
   // render player
-  Texture2D hands_texture =
-      player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet;
-  DrawTexturePro(hands_texture,
-                 (Rectangle){player->character.hand_anim.curr_sprite * player->width, 0,
-                             player->width, player->height},
-                 (Rectangle){player->pos.x + player->width / 2.0,
-                             player->pos.y + player->height / 2.0, player->width, player->height},
-                 (Vector2){player->width / 2.0, player->height / 2.0},
-                 player->character.hand_anim.rot * RAD2DEG, WHITE);
+  DrawTexturePro(
+      player->weapon.effect_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
+      (Rectangle){player->weapon.effect_anim.curr_sprite * player->width, 0, player->width,
+                  player->height},
+      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
+                  player->width, player->height},
+      (Vector2){player->width / 2.0, player->height / 2.0},
+      player->weapon.effect_anim.rot * RAD2DEG, WHITE);
+  DrawTexturePro(
+      player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
+      (Rectangle){player->character.hand_anim.curr_sprite * player->width, 0, player->width,
+                  player->height},
+      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
+                  player->width, player->height},
+      (Vector2){player->width / 2.0, player->height / 2.0},
+      player->character.hand_anim.rot * RAD2DEG, WHITE);
   DrawTexturePro(
       player->character.body_anim.anim_setups[player->character.body_anim.anim_action].sprite_sheet,
       (Rectangle){player->character.body_anim.curr_sprite * player->width, 0, player->width,
@@ -612,12 +642,18 @@ int main(void) {
                   {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
                    (AnimationSetup){{0}, 0, 0, 0, 0, 0, false}}}}};
 
-  Weapon weapons[] = {
-      (Weapon){{0},
-               {0},
-               {0},
-               (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 2, true},
-               false}};
+  Weapon weapons[] = {(Weapon){
+      {0},
+      {0},
+      (Animation){0,
+                  0,
+                  0,
+                  as_idle,
+                  aa_walking,
+                  {(AnimationSetup){{0}, 0, 0, 0, 0, 0, false},
+                   (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY), 0, 1, 9, 0, 3, true}}},
+      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 3, true},
+      false}};
 
   Player player = {0};
   player.pos.x = 150;
@@ -634,6 +670,7 @@ int main(void) {
   camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
   camera.rotation = 0.0f;
   camera.zoom = 2.0f;
+  player.cam = camera;
 
   Map map = {0};
   CreateRoom(&map, (Rec){0, 0, 10, 10});
@@ -657,12 +694,14 @@ int main(void) {
     // const char* hand_anim_text =
     //     TextFormat("%d %d %d",
     //                player.character.hand_anim.anim_action,
-    //                player.character.hand_anim.curr_sprite, player.character.hand_anim.anim_state);
+    //                player.character.hand_anim.curr_sprite,
+    //                player.character.hand_anim.anim_state);
     // DrawText(hand_anim_text, 0, 0, tile_size, RED);
     //     const char* body_anim_text =
     //     TextFormat("%d %d %d",
     //                player.character.body_anim.anim_action,
-    //                player.character.body_anim.curr_sprite, player.character.body_anim.anim_state);
+    //                player.character.body_anim.curr_sprite,
+    //                player.character.body_anim.anim_state);
     // DrawText(body_anim_text, 0, 100, tile_size, RED);
     EndDrawing();
   }
