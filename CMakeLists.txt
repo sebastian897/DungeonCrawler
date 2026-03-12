@@ -42,7 +42,10 @@ include(resources.cmake)
 
 add_executable(dungeoncrawler
   src/main.c
+  src/map.c
+  src/types.c
   src/raygui_impl.c
+  src/player.c
   ${GEN_C_FILES}
 )
 
