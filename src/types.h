@@ -12,7 +12,8 @@ enum {
   structure_max_width = 16,
   structure_max_height = 16,
   hallway_size = 2,
-  num_chars = 1
+  num_chars = 1,
+  num_weapons = 1,
 };
 
 typedef struct V2 {
@@ -25,7 +26,6 @@ typedef struct Size {
   int height;
 } Size;
 
-
 typedef struct Rec {
   V2 pos;
   Size size;
@@ -37,6 +37,8 @@ typedef struct ScreenPos {
 } ScreenPos;
 
 // V2 GetPosOfRec(Rec rec);
+Size GetTileSize();
+Rec GetTileRec(V2 pos);
 V2 AddV2(V2 v1, V2 v2);
 V2 SubV2(V2 v1, V2 v2);
 Size SubSize(Size s1, Size s2);

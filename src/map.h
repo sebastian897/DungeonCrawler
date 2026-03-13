@@ -58,16 +58,9 @@ typedef struct Map {
   Tile_idx arr[map_max_height][map_max_width];
 } Map;
 
-// typedef struct Structure {
-//   tile_idx arr[map_max_height][map_max_width];
-//   V2 pos;
-// } Structure;
-
 extern MapTile tiles[tt_count];
 extern Texture2D textures[tex_count];
 
 void CreateRoom(Map* map, Rec rec);
 void PrettyTiles(Map* map);
 void BreakWalls(Map* map);
-// void AddContentsToStruct(Structure* dest, Structure* source);
-// void ShiftStructure(Structure* dest, Structure* source, V2 v);

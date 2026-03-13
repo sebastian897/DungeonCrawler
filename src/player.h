@@ -1,6 +1,7 @@
 #pragma once
 #include <raylib.h>
 
+#include "types.h"
 typedef enum anim_state {
   as_idle,
   as_inactive,
@@ -12,6 +13,15 @@ typedef enum anim_action {
   aa_attacking,
   aa_count,
 } anim_action;
+
+typedef enum anim_type {
+  at_body,
+  at_hands,
+  at_effect,
+  at_count,
+} anim_type;
+
+extern anim_type anim_types[at_count];
 
 typedef struct AnimationSetup {
   Texture2D sprite_sheet;
@@ -33,26 +43,33 @@ typedef struct Animation {
 } Animation;
 
 typedef struct Weapon {
-  Animation walking_anim;
-  Animation attacking_anim;
-  Animation effect_anim;
+  // Animation walking_anim;
+  // Animation attacking_anim;
+  // Animation effect_anim;
+  AnimationSetup effect_attacking_anim;
   AnimationSetup hand_attacking_anim;
   bool can_hold;
 } Weapon;
 
+// extern Weapon weapons[];
+
 typedef struct Character {
   char* name;
-  Animation body_anim;
-  Animation hand_anim;
+  Animation anims[at_count];
+  // Animation body_anim;
+  // Animation hand_anim;
+  // Animation effect_anim;
 } Character;
 
 typedef struct Player {
-  Vector2 pos;
-  int width;
-  int height;
+  Rec rec;
+  // int width;
+  // int height;
   float speed;
+  float rot;
   Character character;
-  Weapon weapon;
+  Weapon weapons[num_weapons];
+  int weapon;
   Camera2D cam;
 } Player;
 

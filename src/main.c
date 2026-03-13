@@ -3,12 +3,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "raymath.h"
-#include "resources.h"
-
-#include "types.h"
 #include "map.h"
 #include "player.h"
+#include "raymath.h"
+#include "resources.h"
+#include "types.h"
 
 bool debug = false;
 
@@ -26,7 +25,6 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
   miny = Clamp(miny, 0, map_max_height - 1);
   maxy = Clamp(maxy, 0, map_max_height - 1);
 
-  
   // now render unculled area
   for (int my = miny; my <= maxy; my++) {
     for (int mx = minx; mx <= maxx; mx++) {
@@ -40,30 +38,28 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
 
 void RenderPlayer(const Player* player) {
   // render player
-  DrawTexturePro(
-      player->weapon.effect_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
-      (Rectangle){player->weapon.effect_anim.curr_sprite * player->width, 0, player->width,
-                  player->height},
-      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
-                  player->width, player->height},
-      (Vector2){player->width / 2.0, player->height / 2.0},
-      player->weapon.effect_anim.rot * RAD2DEG, WHITE);
-  DrawTexturePro(
-      player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
-      (Rectangle){player->character.hand_anim.curr_sprite * player->width, 0, player->width,
-                  player->height},
-      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
-                  player->width, player->height},
-      (Vector2){player->width / 2.0, player->height / 2.0},
-      player->character.hand_anim.rot * RAD2DEG, WHITE);
-  DrawTexturePro(
-      player->character.body_anim.anim_setups[player->character.body_anim.anim_action].sprite_sheet,
-      (Rectangle){player->character.body_anim.curr_sprite * player->width, 0, player->width,
-                  player->height},
-      (Rectangle){player->pos.x + player->width / 2.0, player->pos.y + player->height / 2.0,
-                  player->width, player->height},
-      (Vector2){player->width / 2.0, player->height / 2.0},
-      player->character.body_anim.rot * RAD2DEG, WHITE);
+  Vector2 origin = {player->rec.size.width / 2.0, player->rec.size.height / 2.0};
+  Rectangle dest = {player->rec.pos.x + player->rec.size.width / 2.0,
+                    player->rec.pos.y + player->rec.size.height / 2.0, player->rec.size.width,
+                    player->rec.size.height};
+  for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
+    DrawTexturePro(player->character.anims[at]
+                       .anim_setups[player->character.anims[at].anim_action]
+                       .sprite_sheet,
+                   (Rectangle){player->character.anims[at].curr_sprite * player->rec.size.width, 0,
+                               player->rec.size.width, player->rec.size.height},
+                   dest, origin, player->character.anims[at].rot * RAD2DEG, WHITE);
+  }
+  // DrawTexturePro(
+  //     player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
+  //     (Rectangle){player->character.hand_anim.curr_sprite * player->rec.size.width, 0,
+  //                 player->rec.size.width, player->rec.size.height},
+  //     dest, origin, player->character.hand_anim.rot * RAD2DEG, WHITE);
+  // DrawTexturePro(
+  //     player->character.body_anim.anim_setups[player->character.body_anim.anim_action].sprite_sheet,
+  //     (Rectangle){player->character.body_anim.curr_sprite * player->rec.size.width, 0,
+  //                 player->rec.size.width, player->rec.size.height},
+  //     dest, origin, player->character.body_anim.rot * RAD2DEG, WHITE);
 }
 
 void MakeRotatedTextures(ResourceID img_res_id, texture_type text_idx_base) {
@@ -74,6 +70,9 @@ void MakeRotatedTextures(ResourceID img_res_id, texture_type text_idx_base) {
     ImageRotateCW(&img);
   }
   UnloadImage(img);
+}
+
+void EquipWeapon() {
 }
 
 int main(void) {
@@ -90,56 +89,48 @@ int main(void) {
 
   Character chars[num_chars] = {(Character){
       "Wizard",
-      (Animation){0,
-                  0,
-                  0,
-                  as_idle,
-                  aa_walking,
-                  {(AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true},
-                   (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true}}},
-      (Animation){0,
-                  0,
-                  0,
-                  as_idle,
-                  aa_walking,
-                  {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
-                   (AnimationSetup){{0}, 0, 0, 0, 0, 0, false}}}}};
+      {(Animation){0,
+                   0,
+                   0,
+                   as_idle,
+                   aa_walking,
+                   {(AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true},
+                    (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true}}},
+       (Animation){0,
+                   0,
+                   0,
+                   as_idle,
+                   aa_walking,
+                   {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
+                    (AnimationSetup){{0}, 0, 0, 0, 0, 0, false}}},
+       (Animation){0}}}};
 
   Weapon weapons[] = {(Weapon){
-      {0},
-      {0},
-      (Animation){0,
-                  0,
-                  0,
-                  as_idle,
-                  aa_walking,
-                  {(AnimationSetup){{0}, 0, 0, 0, 0, 0, false},
-                   (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY), 0, 1, 9, 0, 3, true}}},
-      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 3, true},
-      false}};
-
+      (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 1, 9, 0, 3, true},
+      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 3, true}, false}};
   Player player = {0};
-  player.pos.x = 150;
-  player.pos.y = 150;
-  player.width = 64;
-  player.height = 64;
+  player.rec.pos.x = 150;
+  player.rec.pos.y = 150;
+  player.rec.size.width = 64;
+  player.rec.size.height = 64;
   player.speed = 5;
   player.character = chars[0];
-  player.weapon = weapons[0];
-  player.character.hand_anim.anim_setups[1] = player.weapon.hand_attacking_anim;
+  player.weapons[0] = weapons[0];
+  player.character.anims[at_hands].anim_setups[1] = player.weapons[0].hand_attacking_anim;
+  player.character.anims[at_effect].anim_setups[1] = player.weapons[0].effect_attacking_anim;
 
   Camera2D camera = {0};
-  camera.target = player.pos;
+  camera.target = V2ToVector2(player.rec.pos);
   camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
   camera.rotation = 0.0f;
   camera.zoom = 2.0f;
   player.cam = camera;
 
   Map map = {0};
-  CreateRoom(&map, (Rec){0, 0, 10, 10});
-  CreateRoom(&map, (Rec){9, 3, 6, 4});
-  CreateRoom(&map, (Rec){14, 0, 10, 10});
-  CreateRoom(&map, (Rec){18, 9, 4, 5});
+  CreateRoom(&map, (Rec){{0, 0}, {10, 10}});
+  CreateRoom(&map, (Rec){{9, 3}, {6, 4}});
+  CreateRoom(&map, (Rec){{14, 0}, {10, 10}});
+  CreateRoom(&map, (Rec){{18, 9}, {4, 5}});
   BreakWalls(&map);
   PrettyTiles(&map);
 
