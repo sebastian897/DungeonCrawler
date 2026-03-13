@@ -1,8 +1,8 @@
 #include "types.h"
 
-V2 GetPosOfRec(Rec rec) {
-  return (V2){rec.x, rec.y};
-}
+// V2 GetPosOfRec(Rec rec) {
+//   return (V2){rec.x, rec.y};
+// }
 
 V2 AddV2(V2 v1, V2 v2) {
   return (V2){v1.x + v2.x, v1.y + v2.y};
@@ -10,6 +10,10 @@ V2 AddV2(V2 v1, V2 v2) {
 
 V2 SubV2(V2 v1, V2 v2) {
   return (V2){v1.x - v2.x, v1.y - v2.y};
+}
+
+Size SubSize(Size s1, Size s2) {
+  return (Size){s1.width - s2.width, s1.height - s2.height};
 }
 
 Vector2 V2ToVector2(V2 v) {

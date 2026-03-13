@@ -20,11 +20,15 @@ typedef struct V2 {
   int y;
 } V2;
 
-typedef struct Rec {
-  int x;
-  int y;
+typedef struct Size {
   int width;
   int height;
+} Size;
+
+
+typedef struct Rec {
+  V2 pos;
+  Size size;
 } Rec;
 
 typedef struct ScreenPos {
@@ -32,9 +36,10 @@ typedef struct ScreenPos {
   float y;
 } ScreenPos;
 
-V2 GetPosOfRec(Rec rec);
+// V2 GetPosOfRec(Rec rec);
 V2 AddV2(V2 v1, V2 v2);
 V2 SubV2(V2 v1, V2 v2);
+Size SubSize(Size s1, Size s2);
 Vector2 V2ToVector2(V2 v);
 V2 Vector2ToV2(Vector2 v);
 ScreenPos V2ToScreenPos(V2 v);

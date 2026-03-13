@@ -82,7 +82,7 @@ int main(void) {
   const int screenWidth = GetMonitorWidth(GetCurrentMonitor());
   const int screenHeight = GetMonitorHeight(GetCurrentMonitor());
 
-  MakeRotatedTextures(RES_WALL, tex_wall_bottom);
+  MakeRotatedTextures(RES_WALL, tex_wall_top);
   MakeRotatedTextures(RES_WALL_OUTSIDE_CORNER, tex_outer_corner_topleft);
   MakeRotatedTextures(RES_WALL_INSIDE_CORNER, tex_inner_corner_topleft);
 
