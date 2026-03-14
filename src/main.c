@@ -84,25 +84,27 @@ int main(void) {
 
   Character chars[num_chars] = {(Character){
       "Wizard",
-      {(Animation){0,
-                   0,
-                   0,
-                   as_idle,
-                   aa_walking,
-                   {(AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true},
-                    (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true}}},
-       (Animation){0,
-                   0,
-                   0,
-                   as_idle,
-                   aa_walking,
-                   {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
-                    (AnimationSetup){{0}, 0, 0, 0, 0, 0, false}}},
-       (Animation){0}}}};
+      {[at_body] =
+           (Animation){0,
+                       0,
+                       0,
+                       as_idle,
+                       aa_walking,
+                       {(AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true},
+                        (AnimationSetup){ResourceTexture(RES_WIZARD), 0, 2, 5, 1, 8, true}}},
+       [at_hands] =
+           (Animation){0,
+                       0,
+                       0,
+                       as_idle,
+                       aa_walking,
+                       {(AnimationSetup){ResourceTexture(RES_HANDS_WALKING), 0, 2, 5, 1, 8, true},
+                        (AnimationSetup){}}},
+       [at_effect] = (Animation){0}}}};
 
   Weapon weapons[] = {(Weapon){
-      (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 1, 10, 0, 3, true},
-      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 10, 0, 3, true}, false}};
+      (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 0, 9, 0, 3, true},
+      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 0, 9, 0, 3, true}, false}};
   Player player = {0};
   player.rec.pos.x = 300;
   player.rec.pos.y = 300;
@@ -132,20 +134,18 @@ int main(void) {
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
     PlayerMove(&player, &camera, &map);
-    PlayerAttack(&player);
     AnimatePlayer(&player);
+    PlayerAttack(&player);
     BeginDrawing();
     ClearBackground(RAYWHITE);
     BeginMode2D(camera);
     RenderTiles(&map, &camera, screenWidth, screenHeight);
     RenderPlayer(&player);
     EndMode2D();
-    // const char* hand_anim_text =
-    //     TextFormat("%d %d %d",
-    //                player.character.hand_anim.anim_action,
-    //                player.character.hand_anim.curr_sprite,
-    //                player.character.hand_anim.anim_state);
-    // DrawText(hand_anim_text, 0, 0, tile_size, RED);
+    const char* hand_anim_text = TextFormat(
+        "%d %d %d", player.character.anims[at_hands].anim_action,
+        player.character.anims[at_hands].curr_sprite, player.character.anims[at_hands].anim_state);
+    DrawText(hand_anim_text, 0, 0, tile_size, RED);
     //     const char* body_anim_text =
     //     TextFormat("%d %d %d",
     //                player.character.body_anim.anim_action,

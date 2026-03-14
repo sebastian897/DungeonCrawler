@@ -20,12 +20,12 @@ static bool Collided(Rec r1, Rec r2) {
           PBetween2P(r1.pos.y + r1.size.height - 1, r2.pos.y, r2.pos.y + r2.size.height - 1));
 }
 
-static void GoToNextSprite(Animation* anim, Player* p) {
+static void GoToNextSprite(Player* p, Animation* anim) {
   anim->anim_frame_counter++;
   if (anim->anim_frame_counter >= anim->anim_setups[anim->anim_action].anim_speed) {
     anim->anim_frame_counter = 0;
     if (anim->anim_state == as_active) {
-      if (anim->curr_sprite == anim->anim_setups[anim->anim_action].last_active_sprite) {
+      if (anim->curr_sprite >= anim->anim_setups[anim->anim_action].last_active_sprite) {
         if (anim->anim_action == aa_attacking)
           anim->anim_state = as_inactive;
         else
@@ -37,14 +37,16 @@ static void GoToNextSprite(Animation* anim, Player* p) {
     if (anim->anim_state == as_inactive) {
       if (anim->curr_sprite >= anim->anim_setups[anim->anim_action].first_active_sprite)
         anim->curr_sprite = anim->anim_setups[anim->anim_action].first_inactive_sprite;
-      else if (anim->curr_sprite > anim->anim_setups[anim->anim_action].initial_sprite)
+      if (anim->curr_sprite > anim->anim_setups[anim->anim_action].initial_sprite)
         anim->curr_sprite -= 1;
-      else {
+      if (anim->curr_sprite <= anim->anim_setups[anim->anim_action].initial_sprite)
         anim->anim_state = as_idle;
-      }
     }
     if (anim->anim_state == as_idle) {
+      anim->curr_sprite = anim->anim_setups[aa_walking].initial_sprite;
       anim->anim_action = aa_walking;
+      anim->anim_state = as_inactive;
+      anim->anim_frame_counter = 0;
       anim->rot = p->rot;
     }
   }
@@ -127,7 +129,8 @@ void PlayerAttack(Player* player) {
   bool is_attacking = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
   if (is_attacking) {
     for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
-      if (at > 0) {
+      if (at > 0 && player->character.anims[at].anim_action != aa_attacking) {
+        player->character.anims[at].anim_frame_counter = 0;
         player->character.anims[at].anim_action = aa_attacking;
         player->character.anims[at].anim_state = as_active;
       }
@@ -148,7 +151,7 @@ static void RotAttackAnim(Player* player) {
 
 void AnimatePlayer(Player* player) {
   for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
-    GoToNextSprite(&player->character.anims[at], player);
+    GoToNextSprite(player, &player->character.anims[at]);
     RotAttackAnim(player);
   }
 }
