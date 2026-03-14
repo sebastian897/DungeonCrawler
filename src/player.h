@@ -21,6 +21,8 @@ typedef enum anim_type {
   at_count,
 } anim_type;
 
+extern anim_type anim_draw_priority[at_count];
+
 extern anim_type anim_types[at_count];
 
 typedef struct AnimationSetup {
@@ -34,6 +36,7 @@ typedef struct AnimationSetup {
 } AnimationSetup;
 
 typedef struct Animation {
+  // int draw_priority;
   int curr_sprite;
   int anim_frame_counter;
   float rot;

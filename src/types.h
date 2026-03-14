@@ -39,6 +39,7 @@ typedef struct ScreenPos {
 // V2 GetPosOfRec(Rec rec);
 Size GetTileSize();
 Rec GetTileRec(V2 pos);
+V2 GridPosToPos(V2 v);
 V2 AddV2(V2 v1, V2 v2);
 V2 SubV2(V2 v1, V2 v2);
 Size SubSize(Size s1, Size s2);

@@ -43,23 +43,17 @@ void RenderPlayer(const Player* player) {
                     player->rec.pos.y + player->rec.size.height / 2.0, player->rec.size.width,
                     player->rec.size.height};
   for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
-    DrawTexturePro(player->character.anims[at]
-                       .anim_setups[player->character.anims[at].anim_action]
-                       .sprite_sheet,
-                   (Rectangle){player->character.anims[at].curr_sprite * player->rec.size.width, 0,
-                               player->rec.size.width, player->rec.size.height},
-                   dest, origin, player->character.anims[at].rot * RAD2DEG, WHITE);
+    for (int adp = 0; adp < ARRAY_LENGTH(anim_draw_priority); adp++) {
+      if (at == (int)anim_draw_priority[adp])
+        DrawTexturePro(
+            player->character.anims[adp]
+                .anim_setups[player->character.anims[adp].anim_action]
+                .sprite_sheet,
+            (Rectangle){player->character.anims[adp].curr_sprite * player->rec.size.width, 0,
+                        player->rec.size.width, player->rec.size.height},
+            dest, origin, player->character.anims[adp].rot * RAD2DEG, WHITE);
+    }
   }
-  // DrawTexturePro(
-  //     player->character.hand_anim.anim_setups[player->character.hand_anim.anim_action].sprite_sheet,
-  //     (Rectangle){player->character.hand_anim.curr_sprite * player->rec.size.width, 0,
-  //                 player->rec.size.width, player->rec.size.height},
-  //     dest, origin, player->character.hand_anim.rot * RAD2DEG, WHITE);
-  // DrawTexturePro(
-  //     player->character.body_anim.anim_setups[player->character.body_anim.anim_action].sprite_sheet,
-  //     (Rectangle){player->character.body_anim.curr_sprite * player->rec.size.width, 0,
-  //                 player->rec.size.width, player->rec.size.height},
-  //     dest, origin, player->character.body_anim.rot * RAD2DEG, WHITE);
 }
 
 void MakeRotatedTextures(ResourceID img_res_id, texture_type text_idx_base) {
@@ -106,11 +100,11 @@ int main(void) {
        (Animation){0}}}};
 
   Weapon weapons[] = {(Weapon){
-      (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 1, 9, 0, 3, true},
-      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 9, 0, 3, true}, false}};
+      (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 1, 10, 0, 3, true},
+      (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 1, 10, 0, 3, true}, false}};
   Player player = {0};
-  player.rec.pos.x = 150;
-  player.rec.pos.y = 150;
+  player.rec.pos.x = 300;
+  player.rec.pos.y = 300;
   player.rec.size.width = 64;
   player.rec.size.height = 64;
   player.speed = 5;

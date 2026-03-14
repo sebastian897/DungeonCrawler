@@ -12,6 +12,10 @@ Rec GetTileRec(V2 pos) {
   return (Rec){pos, GetTileSize()};
 }
 
+V2 GridPosToPos(V2 v) {
+  return (V2){v.x * tile_size, v.y * tile_size};
+}
+
 V2 AddV2(V2 v1, V2 v2) {
   return (V2){v1.x + v2.x, v1.y + v2.y};
 }
