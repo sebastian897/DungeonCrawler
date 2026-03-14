@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "map.h"
+#include "raylib.h"
 #include "types.h"
 
 anim_type anim_draw_priority[] = {[at_hands] = 0, [at_effect] = 1, [at_body] = 2};
@@ -53,6 +54,21 @@ static V2 GetMousePos() {
   return (V2){GetMouseX(), GetMouseY()};
 }
 
+void SetCameraPos(Camera2D* cam, V2 p_pos) {
+  if (p_pos.x - cam->offset.x / cam->zoom < 0)
+    cam->target.x = cam->offset.x / cam->zoom;
+  else if (p_pos.x + cam->offset.x / cam->zoom > map_max_width * tile_size)
+    cam->target.x = -cam->offset.x / cam->zoom;
+  else
+    cam->target.x = p_pos.x;
+  if (p_pos.y - cam->offset.y / cam->zoom < 0)
+    cam->target.y = cam->offset.y / cam->zoom;
+  else if (p_pos.y + cam->offset.y / cam->zoom > map_max_height * tile_size)
+    cam->target.y = -cam->offset.y / cam->zoom;
+  else
+    cam->target.y = p_pos.y;
+}
+
 void PlayerMove(Player* p, Camera2D* c, Map* map) {
   V2 dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
   bool is_moving = !(dir_vec.x == 0 && dir_vec.y == 0);
@@ -60,8 +76,7 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
     float mag = p->speed;
     float rot = atan2(dir_vec.y, dir_vec.x);
     p->rot = rot;
-    int newx = p->rec.pos.x + mag * ROUND3DP(cos(rot));
-    int newy = p->rec.pos.y + mag * ROUND3DP(sin(rot));
+    V2 new_pos = {p->rec.pos.x + mag * ROUND3DP(cos(rot)), p->rec.pos.y + mag * ROUND3DP(sin(rot))};
     bool x_col_tile = false;
     bool y_col_tile = false;
     V2 col_tile = {-1, -1};
@@ -70,9 +85,9 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
         if (!tiles[map->arr[my][mx]].can_col) continue;
         V2 tile = {mx, my};
         bool xcol =
-            Collided((Rec){{newx, p->rec.pos.y}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
+            Collided((Rec){{new_pos.x, p->rec.pos.y}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
         bool ycol =
-            Collided((Rec){{p->rec.pos.x, newy}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
+            Collided((Rec){{p->rec.pos.x, new_pos.y}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
         if (xcol) {
           x_col_tile = true;
           col_tile.x = SubV2(tile, dir_vec).x;
@@ -84,17 +99,16 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
       }
     }
     if (!x_col_tile) {
-      p->rec.pos.x = newx;
+      p->rec.pos.x = new_pos.x;
     } else if (col_tile.x >= 0) {
-      p->rec.pos.x = V2ToScreenPos(col_tile).x;
+      p->rec.pos.x = GridPosToPos(col_tile).x;
     }
     if (!y_col_tile) {
-      p->rec.pos.y = newy;
+      p->rec.pos.y = new_pos.y;
     } else if (col_tile.y >= 0) {
-      p->rec.pos.y = V2ToScreenPos(col_tile).y;
+      p->rec.pos.y = GridPosToPos(col_tile).y;
     }
-
-    c->target = V2ToVector2(p->rec.pos);
+    SetCameraPos(c, new_pos);
     for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
       if (p->character.anims[at].anim_action == aa_walking) {
         p->character.anims[at].anim_state = as_active;

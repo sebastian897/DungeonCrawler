@@ -81,3 +81,4 @@ typedef struct Map Map;
 void PlayerMove(Player* p, Camera2D* c, Map* map);
 void PlayerAttack(Player* player);
 void AnimatePlayer(Player* player);
+void SetCameraPos(Camera2D* cam, V2 p_pos);

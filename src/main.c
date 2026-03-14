@@ -79,6 +79,7 @@ int main(void) {
   MakeRotatedTextures(RES_WALL_OUTSIDE_CORNER, tex_outer_corner_topleft);
   MakeRotatedTextures(RES_WALL_INSIDE_CORNER, tex_inner_corner_topleft);
 
+  textures[tex_empty] = ResourceTexture(RES_WALL_BACKGROUND);
   textures[tex_floor] = ResourceTexture(RES_FLOOR);
 
   Character chars[num_chars] = {(Character){
@@ -114,10 +115,10 @@ int main(void) {
   player.character.anims[at_effect].anim_setups[1] = player.weapons[0].effect_attacking_anim;
 
   Camera2D camera = {0};
-  camera.target = V2ToVector2(player.rec.pos);
   camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
   camera.rotation = 0.0f;
   camera.zoom = 2.0f;
+  SetCameraPos(&camera, player.rec.pos);
   player.cam = camera;
 
   Map map = {0};
