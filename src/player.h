@@ -40,15 +40,13 @@ typedef struct Animation {
   int curr_sprite;
   int anim_frame_counter;
   float rot;
+  int anim_speed;
   anim_state anim_state;
   anim_action anim_action;
   AnimationSetup anim_setups[aa_count];
 } Animation;
 
 typedef struct Weapon {
-  // Animation walking_anim;
-  // Animation attacking_anim;
-  // Animation effect_anim;
   AnimationSetup effect_attacking_anim;
   AnimationSetup hand_attacking_anim;
   bool can_hold;
@@ -59,21 +57,13 @@ typedef struct Weapon {
 typedef struct Character {
   char* name;
   Animation anims[at_count];
-  // Animation body_anim;
-  // Animation hand_anim;
-  // Animation effect_anim;
 } Character;
-
-// typedef struct Hitbox {
-//   rec;
-// } Hitbox;
 
 typedef struct Player {
   Rec rec;
-  // int width;
-  // int height;
-  // Rec hitbox;
-  float speed;
+  float mass;
+  Vector2 speed;
+  float walking_force;
   float rot;
   Character character;
   Weapon weapons[num_weapons];
