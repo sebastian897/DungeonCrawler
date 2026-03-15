@@ -98,34 +98,37 @@ void PlayerMove(Player* p, Map* map) {
     bool x_col_tile = false;
     bool y_col_tile = false;
     V2I col_tile = {-1, -1};
+    Vector2 new_player_pos_x = {new_pos.x, p->rec.pos.y};
+    Vector2 new_player_pos_y = {p->rec.pos.x, new_pos.y};
     for (int my = 0; my < map_max_height; my++) {
       for (int mx = 0; mx < map_max_width; mx++) {
         V2I tile = {mx, my};
         if (!tiles[map->arr[tile.y][tile.x]].can_col) continue;
         Rec tile_hitbox = GetTileHitbox(GetTilePos(V2IToVector2(tile)));
         Vector2 pos_before_col = GetPosOfCollidedObj(tile_hitbox, p->rec, dir_vec);
-        if (CheckColRecs((Rec){(Vector2){new_pos.x, p->rec.pos.y}, p->rec.size}, tile_hitbox)) {
+        if (CheckColRecs((Rec){new_player_pos_x, p->rec.size}, tile_hitbox)) {
           x_col_tile = true;
           col_tile.x = pos_before_col.x;
         }
-        if (CheckColRecs((Rec){(Vector2){p->rec.pos.x, new_pos.y}, p->rec.size}, tile_hitbox)) {
+        if (CheckColRecs((Rec){new_player_pos_y, p->rec.size}, tile_hitbox)) {
           y_col_tile = true;
           col_tile.y = pos_before_col.y;
         }
       }
     }
+    Vector2 new_pos_after_col = p->rec.pos;
     if (!x_col_tile) {
-      p->rec.pos.x = new_pos.x;
+      new_pos_after_col.x = new_pos.x;
     } else if (col_tile.x >= 0) {
-      p->rec.pos.x = col_tile.x;
+      new_pos_after_col.x = col_tile.x;
     }
     if (!y_col_tile) {
-      p->rec.pos.y = new_pos.y;
+      new_pos_after_col.y = new_pos.y;
     } else if (col_tile.y >= 0) {
-      p->rec.pos.y = col_tile.y;
+      new_pos_after_col.y = col_tile.y;
     }
-    // Rec player_rec = {new_pos, p->rec.size};
-    SetCameraPos(&p->cam, new_pos);
+    p->rec.pos = new_pos_after_col;
+    SetCameraPos(&p->cam, new_pos_after_col);
     for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
       if (p->character.anims[at].anim_action == aa_walking) {
         p->character.anims[at].anim_state = as_active;

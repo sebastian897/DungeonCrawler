@@ -135,9 +135,7 @@ int main(void) {
     RenderTiles(&map, &player.cam, screenWidth, screenHeight);
     RenderPlayer(&player);
     EndMode2D();
-    const char* hand_anim_text = TextFormat(
-        "%d %d %d", player.character.anims[at_hands].anim_action,
-        player.character.anims[at_hands].curr_sprite, player.character.anims[at_hands].anim_state);
+    const char* hand_anim_text = TextFormat("%f %f", player.rec.pos.x, player.rec.pos.y);
     DrawText(hand_anim_text, 0, 0, tile_size, RED);
     //     const char* body_anim_text =
     //     TextFormat("%d %d %d",
