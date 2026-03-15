@@ -40,12 +40,13 @@ void RenderPlayer(const Player* player) {
   for (int adp = 0; adp < ARRAY_LENGTH(anim_draw_priority); adp++) {
     int at = (int)anim_draw_priority[adp];
     const Animation a = player->character.anims[at];
-    const Texture2D text = a.anim_setups[a.anim_action].sprite_sheet;
-    const Rectangle source = (Rectangle){a.curr_sprite * text.height, 0, text.height, text.height};
-    const Rectangle dest = {player->rec.pos.x + (text.height) / 2.0,
-                            player->rec.pos.y + (text.height) / 2.0, text.height, text.height};
+    const Texture2D tex = a.anim_setups[a.anim_action].sprite_sheet;
+    const Rectangle source = (Rectangle){a.curr_sprite * tex.height, 0, tex.height, tex.height};
+    const Rectangle dest = {player->rec.pos.x + (player->rec.size.width) / 2.0,
+                            player->rec.pos.y + (player->rec.size.height) / 2.0, tex.height,
+                            tex.height};
     const Vector2 origin = {dest.width / 2, dest.height / 2};  // correct
-    DrawTexturePro(text, source, dest, origin, a.rot * RAD2DEG, WHITE);
+    DrawTexturePro(tex, source, dest, origin, a.rot * RAD2DEG, WHITE);
   }
 }
 
@@ -100,7 +101,7 @@ int main(void) {
       (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 0, 9, 0, 3, true}, false}};
   Player player = {0};
   player.rec.pos = (Vector2){300, 300};
-  player.rec.size = (Size){64, 64};
+  player.rec.size = (Size){34, 34};
   player.speed = 5;
   player.character = chars[0];
   player.weapons[0] = weapons[0];

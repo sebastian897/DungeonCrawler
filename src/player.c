@@ -15,6 +15,20 @@ anim_type anim_draw_priority[] = {at_hands, at_effect, at_body};
 //          r1.y + r1.height > r2.y;
 // }
 
+Vector2 GetPosOfCollidedObj(Rec stat_hb, Rec mov_hb, V2I dir) {
+  Vector2 new_pos = mov_hb.pos;
+  if (dir.x < 0)
+    new_pos.x = stat_hb.pos.x + stat_hb.size.width;
+  else if (dir.x > 0)
+    new_pos.x = stat_hb.pos.x - mov_hb.size.width;
+
+  if (dir.y < 0)
+    new_pos.y = stat_hb.pos.y + stat_hb.size.height;
+  else if (dir.y > 0)
+    new_pos.y = stat_hb.pos.y - mov_hb.size.height;
+  return new_pos;
+}
+
 bool CheckColRecs(Rec rec1, Rec rec2) {
   return ((rec1.pos.x < (rec2.pos.x + rec2.size.width) &&
            (rec1.pos.x + rec1.size.width) > rec2.pos.x) &&
@@ -90,26 +104,26 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
         V2I tile = {mx, my};
         if (!tiles[map->arr[tile.y][tile.x]].can_col) continue;
         Rec tile_hitbox = GetTileHitbox(GetTilePos(V2IToVector2(tile)));
-        V2I tile_before_col = V2ISub(tile, dir_vec);
+        Vector2 pos_before_col = GetPosOfCollidedObj(tile_hitbox, p->rec, dir_vec);
         if (CheckColRecs((Rec){(Vector2){new_pos.x, p->rec.pos.y}, p->rec.size}, tile_hitbox)) {
           x_col_tile = true;
-          col_tile.x = tile_before_col.x;
+          col_tile.x = pos_before_col.x;
         }
         if (CheckColRecs((Rec){(Vector2){p->rec.pos.x, new_pos.y}, p->rec.size}, tile_hitbox)) {
           y_col_tile = true;
-          col_tile.y = tile_before_col.y;
+          col_tile.y = pos_before_col.y;
         }
       }
     }
     if (!x_col_tile) {
       p->rec.pos.x = new_pos.x;
     } else if (col_tile.x >= 0) {
-      p->rec.pos.x = GridPosToPos(col_tile).x;
+      p->rec.pos.x = col_tile.x;
     }
     if (!y_col_tile) {
       p->rec.pos.y = new_pos.y;
     } else if (col_tile.y >= 0) {
-      p->rec.pos.y = GridPosToPos(col_tile).y;
+      p->rec.pos.y = col_tile.y;
     }
     SetCameraPos(c, new_pos);
     for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
