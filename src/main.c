@@ -30,29 +30,22 @@ void RenderTiles(const Map* map, const Camera2D* camera, int screenWidth, int sc
     for (int mx = minx; mx <= maxx; mx++) {
       MapTile* tile = &tiles[map->arr[my][mx]];
       Texture2D* tex = &textures[tile->texture];
-      DrawTextureRec(*tex, (Rectangle){0, 0, tex->width, tex->height},
-                     (Vector2){mx * tile_size, my * tile_size}, WHITE);
+      Vector2 tile_pos = {mx, my};
+      DrawTextureRec(*tex, (Rectangle){0, 0, tex->width, tex->height}, GetTilePos(tile_pos), WHITE);
     }
   }
 }
 
 void RenderPlayer(const Player* player) {
-  // render player
-  Vector2 origin = {player->rec.size.width / 2.0, player->rec.size.height / 2.0};
-  Rectangle dest = {player->rec.pos.x + player->rec.size.width / 2.0,
-                    player->rec.pos.y + player->rec.size.height / 2.0, player->rec.size.width,
-                    player->rec.size.height};
-  for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
-    for (int adp = 0; adp < ARRAY_LENGTH(anim_draw_priority); adp++) {
-      if (at == (int)anim_draw_priority[adp])
-        DrawTexturePro(
-            player->character.anims[adp]
-                .anim_setups[player->character.anims[adp].anim_action]
-                .sprite_sheet,
-            (Rectangle){player->character.anims[adp].curr_sprite * player->rec.size.width, 0,
-                        player->rec.size.width, player->rec.size.height},
-            dest, origin, player->character.anims[adp].rot * RAD2DEG, WHITE);
-    }
+  for (int adp = 0; adp < ARRAY_LENGTH(anim_draw_priority); adp++) {
+    int at = (int)anim_draw_priority[adp];
+    const Animation a = player->character.anims[at];
+    const Texture2D text = a.anim_setups[a.anim_action].sprite_sheet;
+    const Rectangle source = (Rectangle){a.curr_sprite * text.height, 0, text.height, text.height};
+    const Rectangle dest = {player->rec.pos.x + (text.height) / 2.0,
+                            player->rec.pos.y + (text.height) / 2.0, text.height, text.height};
+    const Vector2 origin = {dest.width / 2, dest.height / 2};  // correct
+    DrawTexturePro(text, source, dest, origin, a.rot * RAD2DEG, WHITE);
   }
 }
 
@@ -106,15 +99,14 @@ int main(void) {
       (AnimationSetup){ResourceTexture(RES_WIZARD_PRIMARY_EFFECT_ATTACKING), 0, 0, 9, 0, 3, true},
       (AnimationSetup){ResourceTexture(RES_HANDS_ATTACKING), 0, 0, 9, 0, 3, true}, false}};
   Player player = {0};
-  player.rec.pos.x = 300;
-  player.rec.pos.y = 300;
-  player.rec.size.width = 64;
-  player.rec.size.height = 64;
+  player.rec.pos = (Vector2){300, 300};
+  player.rec.size = (Size){64, 64};
   player.speed = 5;
   player.character = chars[0];
   player.weapons[0] = weapons[0];
   player.character.anims[at_hands].anim_setups[1] = player.weapons[0].hand_attacking_anim;
   player.character.anims[at_effect].anim_setups[1] = player.weapons[0].effect_attacking_anim;
+  // player.hitbox.rec = (Rec){{14, 14}, {34, 34}};
 
   Camera2D camera = {0};
   camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};

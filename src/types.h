@@ -16,10 +16,10 @@ enum {
   num_weapons = 1,
 };
 
-typedef struct V2 {
+typedef struct V2I {
   int x;
   int y;
-} V2;
+} V2I;
 
 typedef struct Size {
   int width;
@@ -27,22 +27,33 @@ typedef struct Size {
 } Size;
 
 typedef struct Rec {
-  V2 pos;
+  Vector2 pos;
   Size size;
 } Rec;
 
-typedef struct ScreenPos {
-  float x;
-  float y;
-} ScreenPos;
+// typedef struct ScreenPos {
+//   float x;
+//   float y;
+// } ScreenPos;
 
-// V2 GetPosOfRec(Rec rec);
+// Vector2 GetPosOfRec(Rec rec);
 Size GetTileSize();
-Rec GetTileRec(V2 pos);
-V2 GridPosToPos(V2 v);
-V2 AddV2(V2 v1, V2 v2);
-V2 SubV2(V2 v1, V2 v2);
+Rec GetTileHitbox(Vector2 pos);
+Vector2 GetTilePos(Vector2 v);
+Vector2 GetPosOfRec(Rec rec);
+Size GetSizeOfRec(Rec rec);
+V2I V2IAdd(V2I v1, V2I v2);
+V2I V2ISub(V2I v1, V2I v2);
+V2I Vector2ToV2I(Vector2 v);
+Vector2 V2IToVector2(V2I v);
+Size SizeAdd(Size v1, Size v2);
+Size SizeSub(Size v1, Size v2);
+Rec TransformRec(Rec rec, Vector2 pos, Size size);
+Rectangle RecToRectangle(Rec rec);
+Vector2 GridPosToPos(V2I v);
+// Vector2 AddVector2(Vector2 v1, Vector2 Vector2);
+// Vector2 SubVector2(Vector2 v1, Vector2 Vector2);
 Size SubSize(Size s1, Size s2);
-Vector2 V2ToVector2(V2 v);
-V2 Vector2ToV2(Vector2 v);
-ScreenPos V2ToScreenPos(V2 v);
+// Vector2 Vector2ToVector2(Vector2 v);
+// Vector2 Vector2ToVector2(Vector2 v);
+// ScreenPos Vector2ToScreenPos(Vector2 v);

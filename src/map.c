@@ -59,32 +59,36 @@ static const tile_type tile_type_to_tile_group[] = {
 static void PasteRecOnMap(Map* map, Rec rec, tile_type tile) {
   for (int y = 0; y < rec.size.height; y++) {
     for (int x = 0; x < rec.size.width; x++) {
-      map->arr[rec.pos.y + y][rec.pos.x + x] = tile;
+      V2I pos = V2IAdd(Vector2ToV2I(rec.pos), (V2I){x, y});
+      map->arr[pos.y][pos.x] = tile;
     }
   }
 }
 
 void CreateRoom(Map* map, Rec rec) {
   PasteRecOnMap(map, rec, tt_wall_top);
-  PasteRecOnMap(map, (Rec){AddV2(rec.pos, (V2){1, 1}), SubSize(rec.size, (Size){2, 2})}, tt_floor);
+  Vector2 pos_offset = {1, 1};
+  Size size_offset = {-2, -2};
+  PasteRecOnMap(map, TransformRec(rec, pos_offset, size_offset), tt_floor);
 }
 
 static Tile_idx GetGroupFromTileType(uint8_t tile) {
   return tile_type_to_tile_group[tile];
 }
 
-static bool IsInBounds(V2 pos) {
+static bool IsInBounds(Vector2 pos) {
   return pos.x >= 0 && pos.y >= 0 && pos.x < map_max_width && pos.y < map_max_height;
 }
 
-static uint8_t GetSignature(Map* map, V2 pos) {
+static uint8_t GetSignature(Map* map, V2I pos) {
   uint8_t signature = 0;
   for (int dy = 1; dy >= -1; dy--) {
     for (int dx = 1; dx >= -1; dx--) {
       if (!dy && !dx) continue;
-      V2 dir = {dx, dy};
-      V2 new_pos = AddV2(pos, dir);
-      uint8_t new_bit = !IsInBounds(new_pos) || tiles[map->arr[new_pos.y][new_pos.x]].can_col;
+      V2I dir = {dx, dy};
+      V2I new_pos = V2IAdd(pos, dir);
+      uint8_t new_bit =
+          !IsInBounds(V2IToVector2(new_pos)) || tiles[map->arr[new_pos.y][new_pos.x]].can_col;
       signature <<= 1;
       signature |= new_bit;
     }
@@ -104,7 +108,7 @@ int ApplyPattern(uint8_t sig, const uint8_t* patterns, const uint8_t* masks, uin
 void PrettyTiles(Map* map) {
   for (int my = 0; my < map_max_height; my++) {
     for (int mx = 0; mx < map_max_width; mx++) {
-      V2 t_pos = {mx, my};
+      V2I t_pos = {mx, my};
       Tile_idx* tile = &map->arr[t_pos.y][t_pos.x];
       if (GetGroupFromTileType(*tile) != tt_wall_top) continue;
       uint8_t sig = GetSignature(map, t_pos);
@@ -120,7 +124,7 @@ void PrettyTiles(Map* map) {
 void BreakWalls(Map* map) {
   for (int my = 0; my < map_max_height; my++) {
     for (int mx = 0; mx < map_max_width; mx++) {
-      V2 t_pos = {mx, my};
+      V2I t_pos = {mx, my};
       Tile_idx* tile = &map->arr[t_pos.y][t_pos.x];
       if (GetGroupFromTileType(*tile) != tt_wall_top) continue;
       uint8_t sig = GetSignature(map, t_pos);

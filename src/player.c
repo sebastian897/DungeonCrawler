@@ -5,19 +5,21 @@
 
 #include "map.h"
 #include "raylib.h"
+#include "raymath.h"
 #include "types.h"
 
-anim_type anim_draw_priority[] = {[at_hands] = 0, [at_effect] = 1, [at_body] = 2};
+anim_type anim_draw_priority[] = {at_hands, at_effect, at_body};
 
-static bool PBetween2P(float p, float p2l, float p2h) {
-  return p >= p2l && p <= p2h;
-}
+// static bool Collided(Rec r1, Rec r2) {
+//   return r1.x < r2.x + r2.width && r1.x + r1.width > r2.x && r1.y < r2.y + r2.height &&
+//          r1.y + r1.height > r2.y;
+// }
 
-static bool Collided(Rec r1, Rec r2) {
-  return (PBetween2P(r1.pos.x, r2.pos.x, r2.pos.x + r2.size.width - 1) ||
-          PBetween2P(r1.pos.x + r1.size.width - 1, r2.pos.x, r2.pos.x + r2.size.width - 1)) &&
-         (PBetween2P(r1.pos.y, r2.pos.y, r2.pos.y + r2.size.height - 1) ||
-          PBetween2P(r1.pos.y + r1.size.height - 1, r2.pos.y, r2.pos.y + r2.size.height - 1));
+bool CheckColRecs(Rec rec1, Rec rec2) {
+  return ((rec1.pos.x < (rec2.pos.x + rec2.size.width) &&
+           (rec1.pos.x + rec1.size.width) > rec2.pos.x) &&
+          (rec1.pos.y < (rec2.pos.y + rec2.size.height) &&
+           (rec1.pos.y + rec1.size.height) > rec2.pos.y));
 }
 
 static void GoToNextSprite(Player* p, Animation* anim) {
@@ -52,11 +54,11 @@ static void GoToNextSprite(Player* p, Animation* anim) {
   }
 }
 
-static V2 GetMousePos() {
-  return (V2){GetMouseX(), GetMouseY()};
+static Vector2 GetMousePos() {
+  return (Vector2){GetMouseX(), GetMouseY()};
 }
 
-void SetCameraPos(Camera2D* cam, V2 p_pos) {
+void SetCameraPos(Camera2D* cam, Vector2 p_pos) {
   if (p_pos.x - cam->offset.x / cam->zoom < 0)
     cam->target.x = cam->offset.x / cam->zoom;
   else if (p_pos.x + cam->offset.x / cam->zoom > map_max_width * tile_size)
@@ -72,31 +74,30 @@ void SetCameraPos(Camera2D* cam, V2 p_pos) {
 }
 
 void PlayerMove(Player* p, Camera2D* c, Map* map) {
-  V2 dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
+  V2I dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
   bool is_moving = !(dir_vec.x == 0 && dir_vec.y == 0);
   if (is_moving) {
     float mag = p->speed;
     float rot = atan2(dir_vec.y, dir_vec.x);
     p->rot = rot;
-    V2 new_pos = {p->rec.pos.x + mag * ROUND3DP(cos(rot)), p->rec.pos.y + mag * ROUND3DP(sin(rot))};
+    Vector2 new_pos = {p->rec.pos.x + mag * ROUND3DP(cos(rot)),
+                       p->rec.pos.y + mag * ROUND3DP(sin(rot))};
     bool x_col_tile = false;
     bool y_col_tile = false;
-    V2 col_tile = {-1, -1};
+    V2I col_tile = {-1, -1};
     for (int my = 0; my < map_max_height; my++) {
       for (int mx = 0; mx < map_max_width; mx++) {
-        if (!tiles[map->arr[my][mx]].can_col) continue;
-        V2 tile = {mx, my};
-        bool xcol =
-            Collided((Rec){{new_pos.x, p->rec.pos.y}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
-        bool ycol =
-            Collided((Rec){{p->rec.pos.x, new_pos.y}, p->rec.size}, GetTileRec(GridPosToPos(tile)));
-        if (xcol) {
+        V2I tile = {mx, my};
+        if (!tiles[map->arr[tile.y][tile.x]].can_col) continue;
+        Rec tile_hitbox = GetTileHitbox(GetTilePos(V2IToVector2(tile)));
+        V2I tile_before_col = V2ISub(tile, dir_vec);
+        if (CheckColRecs((Rec){(Vector2){new_pos.x, p->rec.pos.y}, p->rec.size}, tile_hitbox)) {
           x_col_tile = true;
-          col_tile.x = SubV2(tile, dir_vec).x;
+          col_tile.x = tile_before_col.x;
         }
-        if (ycol) {
+        if (CheckColRecs((Rec){(Vector2){p->rec.pos.x, new_pos.y}, p->rec.size}, tile_hitbox)) {
           y_col_tile = true;
-          col_tile.y = SubV2(tile, dir_vec).y;
+          col_tile.y = tile_before_col.y;
         }
       }
     }
@@ -138,20 +139,17 @@ void PlayerAttack(Player* player) {
   }
 }
 
-static void RotAttackAnim(Player* player) {
-  V2 mouse_pos = GetMousePos();
-  V2 player_screenpos = Vector2ToV2(player->cam.offset);
-  V2 dir = SubV2(mouse_pos, player_screenpos);
+static void RotAttackAnim(Player* player, Animation* anim) {
+  Vector2 mouse_pos = GetMousePos();
+  Vector2 player_screenpos = player->cam.offset;
+  Vector2 dir = Vector2Subtract(mouse_pos, player_screenpos);
   float rot = atan2(dir.y, dir.x);
-  for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
-    if (player->character.anims[at].anim_action == aa_attacking)
-      player->character.anims[at].rot = rot;
-  }
+  if (anim->anim_action == aa_attacking) anim->rot = rot;
 }
 
 void AnimatePlayer(Player* player) {
   for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
     GoToNextSprite(player, &player->character.anims[at]);
-    RotAttackAnim(player);
+    RotAttackAnim(player, &player->character.anims[at]);
   }
 }

@@ -64,10 +64,15 @@ typedef struct Character {
   // Animation effect_anim;
 } Character;
 
+// typedef struct Hitbox {
+//   rec;
+// } Hitbox;
+
 typedef struct Player {
   Rec rec;
   // int width;
   // int height;
+  // Rec hitbox;
   float speed;
   float rot;
   Character character;
@@ -81,4 +86,4 @@ typedef struct Map Map;
 void PlayerMove(Player* p, Camera2D* c, Map* map);
 void PlayerAttack(Player* player);
 void AnimatePlayer(Player* player);
-void SetCameraPos(Camera2D* cam, V2 p_pos);
+void SetCameraPos(Camera2D* cam, Vector2 p_pos);
