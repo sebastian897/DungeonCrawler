@@ -68,26 +68,25 @@ static void GoToNextSprite(Player* p, Animation* anim) {
   }
 }
 
-static Vector2 GetMousePos() {
-  return (Vector2){GetMouseX(), GetMouseY()};
-}
-
 void SetCameraPos(Camera2D* cam, Vector2 p_pos) {
-  if (p_pos.x - cam->offset.x / cam->zoom < 0)
+  int map_width = map_max_width * tile_size;
+  int map_height = map_max_height * tile_size;
+  if (p_pos.x < cam->offset.x / cam->zoom)
     cam->target.x = cam->offset.x / cam->zoom;
-  else if (p_pos.x + cam->offset.x / cam->zoom > map_max_width * tile_size)
-    cam->target.x = -cam->offset.x / cam->zoom;
+  else if (p_pos.x + cam->offset.x / cam->zoom > map_width)
+    cam->target.x = map_width - cam->offset.x / cam->zoom;
   else
     cam->target.x = p_pos.x;
-  if (p_pos.y - cam->offset.y / cam->zoom < 0)
+
+  if (p_pos.y < cam->offset.y / cam->zoom)
     cam->target.y = cam->offset.y / cam->zoom;
-  else if (p_pos.y + cam->offset.y / cam->zoom > map_max_height * tile_size)
-    cam->target.y = -cam->offset.y / cam->zoom;
+  else if (p_pos.y + cam->offset.y / cam->zoom > map_height)
+    cam->target.y = map_height - cam->offset.y / cam->zoom;
   else
     cam->target.y = p_pos.y;
 }
 
-void PlayerMove(Player* p, Camera2D* c, Map* map) {
+void PlayerMove(Player* p, Map* map) {
   V2I dir_vec = {IsKeyDown(KEY_D) - IsKeyDown(KEY_A), IsKeyDown(KEY_S) - IsKeyDown(KEY_W)};
   bool is_moving = !(dir_vec.x == 0 && dir_vec.y == 0);
   if (is_moving) {
@@ -125,7 +124,8 @@ void PlayerMove(Player* p, Camera2D* c, Map* map) {
     } else if (col_tile.y >= 0) {
       p->rec.pos.y = col_tile.y;
     }
-    SetCameraPos(c, new_pos);
+    // Rec player_rec = {new_pos, p->rec.size};
+    SetCameraPos(&p->cam, new_pos);
     for (int at = 0; at < ARRAY_LENGTH(anim_types); at++) {
       if (p->character.anims[at].anim_action == aa_walking) {
         p->character.anims[at].anim_state = as_active;
@@ -154,11 +154,11 @@ void PlayerAttack(Player* player) {
 }
 
 static void RotAttackAnim(Player* player, Animation* anim) {
-  Vector2 mouse_pos = GetMousePos();
-  Vector2 player_screenpos = player->cam.offset;
-  Vector2 dir = Vector2Subtract(mouse_pos, player_screenpos);
+  if (anim->anim_action != aa_attacking) return;
+  Vector2 mouse_world = GetScreenToWorld2D(GetMousePosition(), player->cam);
+  Vector2 dir = Vector2Subtract(mouse_world, GetRecCenter(player->rec));
   float rot = atan2(dir.y, dir.x);
-  if (anim->anim_action == aa_attacking) anim->rot = rot;
+  anim->rot = rot;
 }
 
 void AnimatePlayer(Player* player) {

@@ -51,6 +51,7 @@ Size SizeSub(Size v1, Size v2);
 Rec TransformRec(Rec rec, Vector2 pos, Size size);
 Rectangle RecToRectangle(Rec rec);
 Vector2 GridPosToPos(V2I v);
+Vector2 GetRecCenter(Rec rec);
 // Vector2 AddVector2(Vector2 v1, Vector2 Vector2);
 // Vector2 SubVector2(Vector2 v1, Vector2 Vector2);
 Size SubSize(Size s1, Size s2);

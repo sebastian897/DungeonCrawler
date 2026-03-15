@@ -33,6 +33,10 @@ Rectangle RecToRectangle(Rec rec) {
   return (Rectangle){rec.pos.x, rec.pos.y, rec.size.width, rec.size.height};
 }
 
+Vector2 GetRecCenter(Rec rec) {
+  return (Vector2){rec.pos.x + rec.size.width / 2.0, rec.pos.y + rec.size.height / 2.0};
+}
+
 Vector2 GridPosToPos(V2I v) {
   return (Vector2){v.x * tile_size, v.y * tile_size};
 }

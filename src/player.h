@@ -83,7 +83,7 @@ typedef struct Player {
 
 typedef struct Map Map;
 
-void PlayerMove(Player* p, Camera2D* c, Map* map);
+void PlayerMove(Player* p, Map* map);
 void PlayerAttack(Player* player);
 void AnimatePlayer(Player* player);
 void SetCameraPos(Camera2D* cam, Vector2 p_pos);

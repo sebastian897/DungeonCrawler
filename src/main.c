@@ -126,13 +126,13 @@ int main(void) {
 
   SetTargetFPS(60);
   while (!WindowShouldClose()) {
-    PlayerMove(&player, &camera, &map);
+    PlayerMove(&player, &map);
     AnimatePlayer(&player);
     PlayerAttack(&player);
     BeginDrawing();
     ClearBackground(RAYWHITE);
-    BeginMode2D(camera);
-    RenderTiles(&map, &camera, screenWidth, screenHeight);
+    BeginMode2D(player.cam);
+    RenderTiles(&map, &player.cam, screenWidth, screenHeight);
     RenderPlayer(&player);
     EndMode2D();
     const char* hand_anim_text = TextFormat(
